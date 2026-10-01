@@ -1,0 +1,5 @@
+# New dedicated PhoneTracker cluster only. Do not replace another cluster's rules.
+local   all             _phonetracker_db                         peer
+host    phonetracker    phonetracker       127.0.0.1/32          scram-sha-256
+# Nothing else is allowed; unmatched requests are denied by PostgreSQL.
+

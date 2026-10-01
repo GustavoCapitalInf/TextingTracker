@@ -1,0 +1,95 @@
+# Standalone configuration; do not also start the stock Homebrew httpd service.
+ServerRoot "@@BREW_PREFIX@@/opt/httpd"
+ServerName @@HOSTNAME@@
+Listen @@LAN_IP@@:80
+Listen @@LAN_IP@@:443
+PidFile "/var/run/phonetracker-httpd.pid"
+ServerTokens Prod
+ServerSignature Off
+TraceEnable Off
+Timeout 65
+KeepAlive On
+MaxKeepAliveRequests 100
+KeepAliveTimeout 5
+
+LoadModule mpm_event_module "@@BREW_PREFIX@@/opt/httpd/lib/httpd/modules/mod_mpm_event.so"
+LoadModule unixd_module "@@BREW_PREFIX@@/opt/httpd/lib/httpd/modules/mod_unixd.so"
+LoadModule authz_core_module "@@BREW_PREFIX@@/opt/httpd/lib/httpd/modules/mod_authz_core.so"
+LoadModule authz_host_module "@@BREW_PREFIX@@/opt/httpd/lib/httpd/modules/mod_authz_host.so"
+LoadModule log_config_module "@@BREW_PREFIX@@/opt/httpd/lib/httpd/modules/mod_log_config.so"
+LoadModule mime_module "@@BREW_PREFIX@@/opt/httpd/lib/httpd/modules/mod_mime.so"
+LoadModule alias_module "@@BREW_PREFIX@@/opt/httpd/lib/httpd/modules/mod_alias.so"
+LoadModule headers_module "@@BREW_PREFIX@@/opt/httpd/lib/httpd/modules/mod_headers.so"
+LoadModule rewrite_module "@@BREW_PREFIX@@/opt/httpd/lib/httpd/modules/mod_rewrite.so"
+LoadModule proxy_module "@@BREW_PREFIX@@/opt/httpd/lib/httpd/modules/mod_proxy.so"
+LoadModule proxy_http_module "@@BREW_PREFIX@@/opt/httpd/lib/httpd/modules/mod_proxy_http.so"
+LoadModule ssl_module "@@BREW_PREFIX@@/opt/httpd/lib/httpd/modules/mod_ssl.so"
+LoadModule socache_shmcb_module "@@BREW_PREFIX@@/opt/httpd/lib/httpd/modules/mod_socache_shmcb.so"
+TypesConfig "@@BREW_PREFIX@@/etc/httpd/mime.types"
+User _www
+Group _www
+SSLSessionCache "shmcb:/var/run/phonetracker-ssl-cache(512000)"
+
+ErrorLog "/var/log/phonetracker-httpd/error.log"
+# Deliberately omit query strings, referers, cookies, and request bodies.
+LogFormat "%a %t \"%m %U %H\" %>s %b" phonetracker
+CustomLog "/var/log/phonetracker-httpd/access.log" phonetracker
+
+<Directory />
+    AllowOverride None
+    Require all denied
+</Directory>
+
+<VirtualHost @@LAN_IP@@:80>
+    ServerName @@HOSTNAME@@
+    RewriteEngine On
+    RewriteCond %{HTTP_HOST} !^@@HOST_REGEX@@(?::80)?$ [NC]
+    RewriteRule ^ - [R=400,L]
+    <Location />
+        Require ip @@LAN_CIDR@@
+    </Location>
+    Redirect permanent / https://@@HOSTNAME@@/
+</VirtualHost>
+
+<VirtualHost @@LAN_IP@@:443>
+    ServerName @@HOSTNAME@@
+    SSLEngine On
+    SSLProtocol -all +TLSv1.2 +TLSv1.3
+    SSLCertificateFile "/Library/PhoneTracker/tls/fullchain.pem"
+    SSLCertificateKeyFile "/Library/PhoneTracker/tls/privkey.pem"
+
+    RewriteEngine On
+    RewriteCond %{HTTP_HOST} !^@@HOST_REGEX@@(?::443)?$ [NC]
+    RewriteRule ^ - [R=400,L]
+
+    <Location />
+        Require ip @@LAN_CIDR@@
+    </Location>
+
+    ProxyRequests Off
+    ProxyPreserveHost On
+    ProxyTimeout 65
+    # Never trust client-supplied proxy headers. Apache is the sole proxy.
+    RequestHeader unset Forwarded early
+    RequestHeader unset X-Forwarded-For early
+    RequestHeader unset X-Forwarded-Host early
+    RequestHeader unset X-Forwarded-Proto early
+    RequestHeader unset X-Forwarded-Port early
+    RequestHeader set X-Forwarded-Proto "https"
+    RequestHeader set X-Forwarded-Port "443"
+
+    # Imported files and .env are never exposed as static content.
+    Alias /static/ "/Library/PhoneTracker/app/staticfiles/"
+    <Directory "/Library/PhoneTracker/app/staticfiles">
+        Options -Indexes -ExecCGI
+        AllowOverride None
+        Require ip @@LAN_CIDR@@
+    </Directory>
+    ProxyPass /static/ !
+    ProxyPass / http://127.0.0.1:8000/ connectiontimeout=5 timeout=65
+    ProxyPassReverse / http://127.0.0.1:8000/
+    # Allows multipart overhead over the app's smaller upload limit.
+    LimitRequestBody 12582912
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "same-origin"
+</VirtualHost>

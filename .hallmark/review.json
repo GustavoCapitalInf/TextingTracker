@@ -1,0 +1,100 @@
+{
+  "date": "2026-10-01",
+  "scope": "PhoneTracker Django templates and static assets",
+  "visualChecks": {
+    "method": "Codex in-app browser via cua_repl, real server on loopback",
+    "login": [
+      320,
+      1280
+    ],
+    "managerDashboard": [
+      320,
+      375,
+      414,
+      768,
+      1440
+    ],
+    "importReview": [
+      320,
+      375,
+      414,
+      768,
+      1440
+    ],
+    "assignedNumbers": [
+      320,
+      375,
+      414,
+      768,
+      1440
+    ],
+    "rootHorizontalOverflow": false,
+    "consoleErrorsOrWarnings": 0,
+    "viewportReset": true
+  },
+  "interactionChecks": [
+    "Password sign-in succeeds with same-origin referrer policy and CSRF protection",
+    "Tuesday-Friday preset uses the server date and fills explicit upcoming dates",
+    "Manager batch view has full authorized list and no call mutation controls",
+    "Revision-based poll remains stable on an unchanged batch",
+    "No export or download-list controls"
+  ],
+  "contrast": {
+    "method": "OKLCH to linear sRGB, WCAG contrast calculations against paper",
+    "ink": 15.12,
+    "muted": 6.45,
+    "accent": 8.8,
+    "warning": 9.23,
+    "error": 8.32,
+    "focus": "Blue outline plus white separating ring for filled buttons"
+  },
+  "privacy": "Opaque privacy cover and sensitive-content blur on focus loss/visibility hidden, explicit resume, revision/network stale-data cover, no-cache server responses, print suppression. Screenshot prevention is not claimed.",
+  "verificationLimit": "Subagent screenshots were reviewed inline rather than exported. Root subsequently verified real focus blur and resume, and the complete upload, split, ownership, date restriction, clear and outcome workflow. Responsive checks above remain the observed viewport coverage; not every intermediate width or assistive-technology combination was separately tested.",
+  "designAdaptation": "Studio forest-green palette; austere local system sans/mono instead of remote fonts for the offline internal tool; operational workbench layout instead of marketing sections. First design pass, no prior project themes.",
+  "finalReview": {
+    "date": "2026-10-01",
+    "referencesRead": [
+      "references/slop-test.md",
+      "references/contract.md"
+    ],
+    "preEmitCritique": {
+      "philosophy": 4,
+      "hierarchy": 5,
+      "execution": 4,
+      "specificity": 5,
+      "restraint": 5,
+      "variety": 4
+    },
+    "conclusion": "No functional UI handoff blocker found. Responsive and functional evidence is retained above. This is an operational-app adaptation of Hallmark, not a claim of unqualified 58/58 catalog conformance.",
+    "verifiedStatic": [
+      "Macrostructure and critique stamps present; project memory and portable tokens present",
+      "All application color and font declarations consume tokens; no remote fonts, scripts or style dependencies",
+      "No inline application style or script blocks; external local app.js is deferred",
+      "No gradients, invented metrics, stock imagery, fake browser chrome, italic headings, looping animation or transition-all",
+      "Root x-overflow uses clip; grids use minmax where necessary; display headings permit word wrapping",
+      "Instant visible focus treatment, reduced-motion fallback, 44px principal controls, label-based forms, non-color-only statuses",
+      "Privacy cover makes underlying workspace inert, supports explicit keyboard-accessible resume, and never claims screenshot prevention",
+      "Revision polling obscures stale lists on changed authorization state or network failure; no phone data in browser storage"
+    ],
+    "documentedAdaptations": [
+      {
+        "gate": 1,
+        "detail": "Local system sans/mono deliberately approved for the offline internal application rather than importing a catalog display font."
+      },
+      {
+        "gate": 24,
+        "detail": "Most spacing is tokenized; a few compact control paddings and optical brand offsets remain literal pixel values instead of strict 4px spacing tokens."
+      },
+      {
+        "gate": 25,
+        "detail": "Short sign-in support copy and rail annotations have narrower measures than long-form 45-75ch guidance."
+      },
+      {
+        "gate": 39,
+        "detail": "Form errors are server-rendered on navigation; helper slots are not universally given a reserved minimum line height. Borders remain fixed-width and focus uses outlines, with no observed layout issue."
+      }
+    ],
+    "remainingBlockers": [],
+    "changesInFinalPass": "Review record only; application templates, CSS and JavaScript left unchanged."
+  }
+}

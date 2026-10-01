@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}Upload a list{% endblock %}
+{% block section_name %}Upload a list{% endblock %}
+{% block content %}
+<header class="page-head"><div><h1>Upload a lead list</h1><p>Add an Excel spreadsheet, then divide the new numbers between your reps.</p></div><a class="button" href="{% url 'dashboard' %}">Back to lists</a></header>
+<div class="form-layout upload-layout">
+  <section class="panel"><form method="post" enctype="multipart/form-data" class="panel-body form-stack">{% csrf_token %}{{ form.non_field_errors }}<div class="field">{{ form.list_type.label_tag }}{{ form.list_type }}{{ form.list_type.errors }}<p class="help-text">Choose which texting group will receive this list.</p></div><div class="field">{{ form.label.label_tag }}{{ form.label }}{{ form.label.errors }}<p class="help-text">For example, “Monday leads” or “October 6–9”.</p></div><div class="field"><label for="{{ form.file.id_for_label }}">Excel spreadsheet</label><div class="dropzone" data-dropzone><span class="upload-file-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm0 0v6h6M8 15h8m-4-4v8"/></svg></span><strong>Drop your spreadsheet here</strong><p>Or select a file from your computer.</p>{{ form.file }}<p data-file-feedback aria-live="polite">.xlsx · One phone number per row · Up to 10,000 rows</p></div>{{ form.file.errors }}</div><div class="form-actions"><button class="button button-primary" type="submit">Upload and review <span aria-hidden="true">→</span></button><a class="button button-quiet" href="{% url 'dashboard' %}">Cancel</a></div></form></section>
+  <aside class="aside-copy upload-guidance"><h2>Spreadsheet format</h2><p>Use a single column of US or Canadian phone numbers. A header and blank rows are fine.</p><p>Previously uploaded numbers are highlighted in yellow and excluded from new assignments.</p><p>On the next screen, choose the dates and reps in the selected texting group. Each rep sees only their own list on its assigned date.</p></aside>
+</div>
+{% endblock %}

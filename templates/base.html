@@ -1,0 +1,48 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="same-origin">
+  <title>{% block title %}PhoneTracker{% endblock %} · Capital Infusion</title>
+  <link rel="icon" href="{% static 'tracker/favicon.svg' %}?v=plain-final" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'tracker/app.css' %}?v=plain-final">
+  <link rel="stylesheet" href="{% static 'tracker/workspace.css' %}?v=plain-final">
+  <link rel="stylesheet" href="{% static 'tracker/pages.css' %}?v=groups-v1">
+  {% block extra_css %}{% endblock %}
+  <script src="{% static 'tracker/app.js' %}" defer></script>
+</head>
+<body>
+<a href="#main-content" class="skip-link">Skip to content</a>
+{% block shell %}
+<div class="app-shell plain-shell">
+  <div class="main-wrap">
+    <header class="plain-header">
+      <a class="plain-brand" href="{% url 'dashboard' %}">Capital Infusion <span>PhoneTracker</span></a>
+      {% if user.is_authenticated %}
+      <nav class="plain-nav" aria-label="Main navigation">
+        <a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' or request.resolver_match.url_name == 'batch_detail' %}aria-current="page"{% endif %}>{% if is_manager %}Lead lists{% else %}Your leads{% endif %}</a>
+        {% if is_manager %}
+        <a href="{% url 'upload_new' %}" {% if request.resolver_match.url_name == 'upload_new' or request.resolver_match.url_name == 'upload_detail' or request.resolver_match.url_name == 'upload_publish' %}aria-current="page"{% endif %}>Upload list</a>
+        <a href="{% url 'team' %}" {% if request.resolver_match.url_name == 'team' or request.resolver_match.url_name == 'team_detail' %}aria-current="page"{% endif %}>Accounts</a>
+        <a href="{% url 'audit_log' %}" {% if request.resolver_match.url_name == 'audit_log' %}aria-current="page"{% endif %}>History</a>
+        {% endif %}
+      </nav>
+      <div class="plain-account"><span>{{ user.get_full_name|default:user.username }}</span>{% if request.user.is_staff %}<a href="{% url 'password_change' %}">Account</a>{% endif %}<form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Sign out</button></form></div>
+      {% else %}<a href="{% url 'login' %}">Sign in</a>{% endif %}
+    </header>
+    <main class="content" id="main-content">
+      {% if demo_mode %}<div class="demo-banner"><span>Demo workspace</span> · Synthetic phone numbers</div>{% endif %}
+      {% include 'tracker/partials/messages.html' %}
+      {% block content %}{% endblock %}
+    </main>
+    <footer class="site-footer"><span>Capital Infusion · Internal use only</span><span>{{ server_today|date:'l, F j, Y' }}</span></footer>
+  </div>
+</div>
+{% endblock %}
+<div id="privacy-overlay" class="privacy-overlay" role="dialog" aria-modal="true" aria-labelledby="privacy-title" hidden>
+  <div class="privacy-box"><h2 id="privacy-title">Your list is covered</h2><p>Phone numbers are hidden when you leave this window. Return to your workspace when you’re ready.</p><button class="button button-primary" id="privacy-resume" type="button">Resume workspace</button></div>
+</div>
+</body>
+</html>

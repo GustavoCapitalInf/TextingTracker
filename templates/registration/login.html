@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Sign in{% endblock %}
+{% block shell %}
+<div class="auth-shell">
+  <header class="auth-topbar"><a class="plain-brand" href="{% url 'login' %}">Capital Infusion <span>PhoneTracker</span></a></header>
+  <main id="main-content" class="auth-main"><div class="auth-form">
+    <h1>Sign in</h1><p>Use your account to access your lead lists.</p>
+    {% include 'tracker/partials/messages.html' %}
+    {% if demo_mode %}<div class="notice">Demo workspace · Synthetic data only</div>{% endif %}
+    {% if form.errors %}<div class="notice notice-error" role="alert"><div>{{ form.non_field_errors }}{% if not form.non_field_errors %}Check your username and password, then try again.{% endif %}</div></div>{% endif %}
+    {% if next and user.is_authenticated %}<div class="notice notice-warning">Your account does not have access to that page.</div>{% endif %}
+    <form method="post" class="form-stack">{% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
+      <div class="field"><label for="id_username">Username</label><input id="id_username" name="username" type="text" autocomplete="username" required autofocus maxlength="150" value="{{ form.username.value|default:'' }}"></div>
+      <div class="field"><label for="id_password">Password</label><input id="id_password" name="password" type="password" autocomplete="current-password" required></div>
+      <button class="button button-primary button-wide" type="submit">Sign in</button>
+    </form>
+    <p class="auth-footnote">For an account or password reset, contact your administrator.</p>
+  </div></main>
+  <footer class="auth-footer">Capital Infusion · Internal use only</footer>
+</div>
+{% endblock %}

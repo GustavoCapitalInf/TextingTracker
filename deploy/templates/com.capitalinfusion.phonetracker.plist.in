@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.capitalinfusion.phonetracker</string>
+  <key>UserName</key><string>_phonetracker</string>
+  <key>GroupName</key><string>_phonetracker</string>
+  <key>WorkingDirectory</key><string>/Library/PhoneTracker/app</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Library/PhoneTracker/app/.venv/bin/gunicorn</string>
+    <string>--config</string><string>/Library/PhoneTracker/app/deploy/gunicorn.conf.py</string>
+    <string>config.wsgi:application</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>DJANGO_ENV</key><string>production</string>
+    <key>PYTHONUNBUFFERED</key><string>1</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>15</integer>
+  <key>ExitTimeOut</key><integer>45</integer>
+  <key>Umask</key><integer>63</integer>
+  <key>StandardOutPath</key><string>/var/log/phonetracker/app.log</string>
+  <key>StandardErrorPath</key><string>/var/log/phonetracker/app.log</string>
+</dict>
+</plist>
+

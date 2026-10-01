@@ -1,0 +1,8 @@
+# Append to the NEW dedicated cluster's postgresql.conf, before first start.
+listen_addresses = '127.0.0.1'
+port = 5432
+unix_socket_directories = '/Library/PhoneTracker/postgres'
+password_encryption = 'scram-sha-256'
+logging_collector = off
+log_statement = 'none'
+

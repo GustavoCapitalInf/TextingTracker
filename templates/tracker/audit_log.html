@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Activity log{% endblock %}
+{% block section_name %}Activity log{% endblock %}
+{% block content %}
+<header class="page-head"><div><h1>Activity log</h1><p>Account access, uploads, and lead assignments.</p></div><span class="badge">{{ events.paginator.count }} events recorded</span></header>
+<div class="panel audit-panel"><div class="panel-head"><h2>Workspace activity</h2><p>Most recent first · {{ company_timezone }}</p></div><div class="table-wrap"><table>
+<thead><tr><th scope="col">Time</th><th scope="col">Person</th><th scope="col">Activity</th><th scope="col">Details</th></tr></thead>
+<tbody>{% for event in events %}
+<tr><td class="audit-time">{{ event.created_at|date:'M j, Y' }}<span class="subtext mono">{{ event.created_at|date:'g:i:s A T' }}</span></td>
+<td>{% if event.actor %}{{ event.actor.get_full_name|default:event.actor.username }}{% elif event.action == 'account.sign_in_failed' %}<span class="quiet">Unauthenticated</span>{% else %}<span class="quiet">System</span>{% endif %}</td>
+<td><span class="audit-action">{{ event.action_label }}</span></td>
+<td>{{ event.description }}{% if event.target_label %}<span class="subtext">{% if event.target_url %}<a class="text-link" href="{{ event.target_url }}">{{ event.target_label }}</a>{% else %}{{ event.target_label }}{% endif %}</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4">No activity has been recorded yet.</td></tr>{% endfor %}</tbody>
+</table></div></div>{% include 'tracker/partials/pagination.html' with page=events %}
+{% endblock %}
+

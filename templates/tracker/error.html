@@ -1,0 +1,3 @@
+{% extends 'base.html' %}
+{% block title %}{{ heading|default:'Page unavailable' }}{% endblock %}
+{% block content %}<div class="empty-state"><span class="badge bottom-space">{{ status|default:'Unavailable' }}</span><h1>{{ heading|default:'This page is unavailable' }}</h1><p class="top-space">{{ message|default:'You may not have access to this page, or the requested item is no longer available.' }}</p><a class="button button-primary" href="{% url 'dashboard' %}">Return to workspace</a></div>{% endblock %}

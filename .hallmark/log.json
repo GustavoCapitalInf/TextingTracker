@@ -1,0 +1,40 @@
+[
+  {
+    "date": "2026-10-01",
+    "scope": "app",
+    "macrostructure": "Plain header, forms and tables",
+    "theme": "Fixed white and neutral gray",
+    "enrichment": "none",
+    "brief": "Deliberately bland phone number manager; no green, dark mode or theme selector",
+    "design_system": "design.md"
+  },
+  {
+    "date": "2026-10-01",
+    "scope": "app",
+    "macrostructure": "Simple lead lists, split and assign, read-only rep numbers",
+    "theme": "Capital Infusion reference dark/light",
+    "enrichment": "none",
+    "brief": "Remove CRM and call tracking; focus on managing and assigning phone numbers",
+    "design_system": "design.md"
+  },
+  {
+    "date": "2026-10-01",
+    "scope": "app",
+    "macrostructure": "Icon rail, secondary sidebar, analysis canvas",
+    "theme": "Capital Infusion reference dark/light",
+    "enrichment": "none",
+    "brief": "Redesign PhoneTracker around the user bank statement analysis tool",
+    "design_system": "design.md"
+  },
+  {
+    "date": "2026-10-01",
+    "macrostructure": "Workbench",
+    "theme": "Studio",
+    "nav": "N3 Side rail",
+    "footer": "Ft2 Inline rule single line",
+    "enrichment": "none",
+    "brief": "Capital Infusion PhoneTracker: private daily sales calling lists, import review and scheduling",
+    "theme_axes": "light / system-sans / forest-green",
+    "notes": "Offline internal-app adaptation: functional sidebar navigation and local system fonts; no marketing hero or imagery."
+  }
+]

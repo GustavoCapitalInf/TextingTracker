@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-01",
+  "scope": "Simplified phone and lead assignment manager",
+  "reference": "User Capital Infusion bank tool screenshots; latest request removes sales outcome tracking",
+  "automated": {
+    "postgresql_full_suite": 60,
+    "result": "pass",
+    "django_check": "pass"
+  },
+  "browser": {
+    "manager_and_rep_sign_in": "pass",
+    "read_only_rep_list": "pass; eight numbers, zero content forms",
+    "day_first_split_preview": "pass; five numbers divided over four days and two reps",
+    "previous_upload_warnings": "pass; legacy outcomes omitted",
+    "themes": [
+      "dark",
+      "light"
+    ],
+    "mobile_navigation": "pass",
+    "review_widths": [
+      320,
+      375
+    ],
+    "upload_widths": [
+      320
+    ],
+    "rep_list_widths": [
+      320,
+      1440
+    ],
+    "dashboard_widths": [
+      1280
+    ],
+    "smoke_script": "updated and syntax-checked; not run in this pass",
+    "console_errors": 0,
+    "viewport_reset": true
+  },
+  "changes": [
+    "Removed call controls, outcome fields, progress calculations, and public call routes",
+    "Simplified navigation and removed sidebar search and duplicate upload widgets",
+    "Kept upload, split, assignment, private links, previous-upload warnings, and history",
+    "Cleared and noncurrent lists never expose rep numbers, including legacy in-progress assignments"
+  ],
+  "privacy": "Existing blur, watermark, print restriction, and stale-list hooks preserved; no guarantee of screenshot prevention.",
+  "data": "Existing database retained. No migrations or history deletions.",
+  "remaining_blockers": []
+}
