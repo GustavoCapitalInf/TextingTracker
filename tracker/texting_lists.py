@@ -170,7 +170,7 @@ def delete_list(actor, item):
     _require_manager(actor)
     with _phone_transaction():
         if any(usage(item).values()):
-            raise ValidationError("This list has uploads or templates, so it can’t be deleted. Hide it instead.")
+            raise ValidationError("This list has uploads or weekly plans, so it can’t be deleted. Hide it instead.")
         RepListMembership.objects.filter(list_type=item.key).delete()
         write_audit(actor, "texting_list.deleted", item, {"key": item.key})
         item.delete()

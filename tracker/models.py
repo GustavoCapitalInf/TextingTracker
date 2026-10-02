@@ -6,6 +6,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import models
+from django.db.models.functions import Lower
 from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
@@ -83,7 +84,7 @@ WEEKDAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 
 class ScheduleTemplate(models.Model):
-    """A reusable week of lists. Active templates plan the admin calendar."""
+    """A weekly plan (shown as Calendar Management): a reusable week of lists. Active plans put reminders on the admin calendar."""
 
     name = models.CharField(max_length=120)
     is_active = models.BooleanField(default=False)
@@ -98,7 +99,7 @@ class ScheduleTemplate(models.Model):
         return self.name
 
     def get_absolute_url(self):
-        return reverse("template_detail", kwargs={"template_id": self.pk})
+        return reverse("calendar_plan", kwargs={"template_id": self.pk})
 
 
 class TemplateList(models.Model):
@@ -151,6 +152,26 @@ class PlanSkip(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["label_key", "list_type", "day"], name="unique_plan_skip"),
         ]
+
+
+class TextTemplate(models.Model):
+    """A ready-made text message for a situation (the Templates page). Admins manage them; every rep can read and copy them."""
+
+    name = models.CharField(max_length=80)
+    body = models.TextField(max_length=1600)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = [Lower("name"), "pk"]  # alphabetical whatever the capitals
+        constraints = [models.UniqueConstraint(Lower("name"), name="text_template_name_unique_ci")]
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        return reverse("text_template_detail", kwargs={"template_id": self.pk})
 
 
 class ImportBatch(models.Model):

@@ -7,7 +7,7 @@
 {% if is_manager %}
 <section class="workspace-section weekly-schedule" aria-labelledby="weekly-heading">
   <div class="section-head"><div><h2 id="weekly-heading">Weekly schedule</h2><p>{{ week_start|date:'M j' }}–{{ week_end|date:'M j, Y' }}</p></div><nav class="calendar-navigation" aria-label="Choose schedule week"><a class="button" href="?date={{ previous_week|date:'Y-m-d' }}" aria-label="Previous week">← Previous</a><a class="button" href="{% url 'dashboard' %}">This week</a><a class="button" href="?date={{ next_week|date:'Y-m-d' }}" aria-label="Next week">Next →</a></nav></div>
-  <p class="calendar-explanation">Every rep’s lists, grouped by upload. Select a day to see each rep’s assignment below, or a list name to review or clear the upload. {% if has_active_template %}Boxes marked Planned are reminders from your <a href="{% url 'templates_index' %}">templates</a>.{% else %}<a href="{% url 'templates_index' %}">Save your usual week as a template</a> to get reminders here.{% endif %}</p>
+  <p class="calendar-explanation">Every rep’s lists, grouped by upload. Select a day to see each rep’s assignment below, or a list name to review or clear the upload. {% if has_active_template %}Boxes marked Planned are reminders from <a href="{% url 'calendar_management' %}">Calendar Management</a>.{% else %}<a href="{% url 'calendar_management' %}">Save your usual week in Calendar Management</a> to get reminders here.{% endif %}</p>
   <div class="weekly-calendar">
     {% for day in calendar_days %}
     <section class="calendar-day{% if day.is_today %} calendar-day-today{% endif %}{% if day.is_selected %} calendar-day-selected{% endif %}" aria-label="{{ day.date|date:'l, F j, Y' }}">

@@ -18,18 +18,21 @@ _ACTION_LABELS = {
     "upload.published": "Batches created",
     "upload.previous_numbers_decided": "Previously uploaded numbers",
     "upload.planned": "Upload filled a planned list",
-    "template.suggested": "Template drafted from past weeks",
-    "template.created": "Template created",
-    "template.updated": "Template saved",
-    "template.list_saved": "Template list saved",
-    "template.list_removed": "Template list removed",
-    "template.deleted": "Template deleted",
+    "template.suggested": "Weekly plan drafted from past weeks",
+    "template.created": "Weekly plan created",
+    "template.updated": "Weekly plan saved",
+    "template.list_saved": "Planned list saved",
+    "template.list_removed": "Planned list removed",
+    "template.deleted": "Weekly plan deleted",
     "plan.skipped": "Planned day skipped",
     "texting_list.created": "Texting list created",
     "texting_list.updated": "Texting list saved",
     "texting_list.members_changed": "Texting list reps changed",
     "texting_list.deleted": "Texting list deleted",
     "plan.unskipped": "Skipped day planned again",
+    "text_template.created": "Text template added",
+    "text_template.updated": "Text template saved",
+    "text_template.deleted": "Text template deleted",
     "upload.closed": "Upload cleared",
     "upload.viewed": "Upload reviewed",
     "batch.closed": "Batch cleared",
@@ -49,10 +52,10 @@ _ACTION_LABELS = {
 
 _SIMPLE_DESCRIPTIONS = {
     "upload.planned": "Linked this upload to a planned list so its days and reps were filled in.",
-    "template.created": "Created a weekly template.",
+    "template.created": "Created a weekly plan.",
     "template.list_saved": "Saved a planned list's name, days, and reps.",
     "template.list_removed": "Removed a planned list; existing lists were unchanged.",
-    "template.deleted": "Deleted a weekly template; existing lists were unchanged.",
+    "template.deleted": "Deleted a weekly plan; existing lists were unchanged.",
     "upload.viewed": "Opened the spreadsheet review and allocation details.",
     "call.started": "Marked this assigned number as a call in progress.",
     "account.signed_in": "Signed in with their personal account.",
@@ -165,7 +168,7 @@ def _description(event):
         return f"Created a texting list with {_quantity(count, 'rep')}." if count is not None else "Created a texting list."
     if action == "texting_list.updated":
         if details.get("is_active") is False:
-            return "Saved the texting list; it is hidden from new uploads and templates."
+            return "Saved the texting list; it is hidden from new uploads and weekly plans."
         return "Renamed the texting list." if details.get("renamed") is True else "Saved the texting list."
     if action == "texting_list.members_changed":
         added, removed = _number(details, "added"), _number(details, "removed")
@@ -182,11 +185,20 @@ def _description(event):
             day = None
         verb = "Skipped a planned list" if action == "plan.skipped" else "Brought back a skipped planned list"
         return f"{verb} for {day}." if day else f"{verb}."
+    if action.startswith("text_template."):
+        name = details.get("name") if isinstance(details.get("name"), str) else ""
+        quoted = f"the “{name[:80]}” template" if name else "a template"
+        if action == "text_template.created":
+            return f"Added {quoted} for reps."
+        if action == "text_template.deleted":
+            return f"Deleted {quoted}; reps no longer see it."
+        changed = [label for key, label in (("renamed", "name"), ("text_changed", "text")) if details.get(key) is True]
+        return f"Changed the {' and '.join(changed)} of {quoted}." if changed else f"Saved {quoted} with no changes."
     if action == "template.suggested":
         count = _number(details, "list_count")
-        return f"Drafted {_quantity(count, 'list')} from the last 4 weeks." if count is not None else "Drafted a template from recent weeks."
+        return f"Drafted {_quantity(count, 'list')} from the last 4 weeks." if count is not None else "Drafted a weekly plan from recent weeks."
     if action == "template.updated":
-        return "Turned the template on for calendar planning." if details.get("is_active") is True else "Saved the template; it is not planning the calendar."
+        return "Turned the weekly plan on for calendar planning." if details.get("is_active") is True else "Saved the weekly plan; it is not planning the calendar."
     if action == "upload.closed":
         count = _number(details, "batch_count")
         summary = f"Closed {_quantity(count, 'batch', 'batches')} from this upload" if count is not None else "Closed this upload"

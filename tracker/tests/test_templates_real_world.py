@@ -43,7 +43,7 @@ class TemplateJourneyTests(TemplateScenario):
             self.sent('Donut daily', 'gfs', [self.blake, self.emilio], days[:5])
 
     def draft_and_turn_on(self, name='Our normal week'):
-        self.manager.post(reverse('templates_index'), {'action': 'suggest'})
+        self.manager.post(reverse('calendar_management'), {'action': 'suggest'})
         template = ScheduleTemplate.objects.latest('pk')
         self.manager.post(template.get_absolute_url(), {'action': 'update_template', 'name': name, 'is_active': 'on'})
         return template
@@ -198,7 +198,7 @@ class TemplateJourneyTests(TemplateScenario):
         upload = self.upload_planned(organic, xlsx(unique_numbers(4)))
         self.assertEqual(self.manager.get(upload.get_absolute_url()).context['form'].initial['reps'], [self.anthony.pk])
         self.anthony.list_memberships.all().delete()
-        self.manager.post(reverse('templates_index'), {'action': 'suggest'})
+        self.manager.post(reverse('calendar_management'), {'action': 'suggest'})
         drafted = ScheduleTemplate.objects.latest('pk').lists.get(label='organic text- Clean')
         self.assertEqual(list(drafted.reps.all()), [])
 
@@ -242,7 +242,7 @@ class TemplateJourneyTests(TemplateScenario):
         for back, label in [(3, 'organic text- Clean'), (2, 'Organic Text - Clean'), (1, 'ORGANIC TEXT – CLEAN')]:
             week = self.this_week - timedelta(weeks=back)
             self.sent(label, 'ringcentral', [self.anthony], self.week_days(week)[1:5])
-        self.manager.post(reverse('templates_index'), {'action': 'suggest'})
+        self.manager.post(reverse('calendar_management'), {'action': 'suggest'})
         drafted = ScheduleTemplate.objects.get().lists.get()
         self.assertEqual(drafted.note, 'Used in 3 of the last 4 weeks')
 
@@ -268,7 +268,7 @@ class TemplateMischiefTests(TemplateScenario):
         self.rep = self.signed_in(self.anthony)
 
     def test_reps_get_the_same_flat_no_at_every_template_door(self):
-        doors = [reverse('templates_index'), self.standard.get_absolute_url(), reverse('template_detail', args=[999999]),
+        doors = [reverse('calendar_management'), self.standard.get_absolute_url(), reverse('calendar_plan', args=[999999]),
                  reverse('upload_new') + f'?slot={self.organic.pk}&week={self.next_monday}']
         for url in doors:
             for method, data in [('get', {}), ('post', {'action': 'suggest'}), ('post', {'action': 'delete_template'}),
@@ -293,12 +293,12 @@ class TemplateMischiefTests(TemplateScenario):
         for query in ['?action=delete_template', '?action=update_template&name=Hacked&is_active=',
                       f'?action=remove_list&list_id={self.organic.pk}']:
             self.assertEqual(self.manager.get(url + query).status_code, 200)
-        self.assertEqual(self.manager.get(reverse('templates_index') + '?action=suggest').status_code, 200)
+        self.assertEqual(self.manager.get(reverse('calendar_management') + '?action=suggest').status_code, 200)
         forged = Client(enforce_csrf_checks=True)
         forged.force_login(self.admin)
         for target, data in [(url, {'action': 'delete_template'}), (url, {'action': 'update_template', 'name': 'Hacked'}),
                              (url, {'action': 'remove_list', 'list_id': self.organic.pk}),
-                             (reverse('templates_index'), {'action': 'create', 'name': 'Spam'})]:
+                             (reverse('calendar_management'), {'action': 'create', 'name': 'Spam'})]:
             self.assertEqual(forged.post(target, data).status_code, 403)
         self.standard.refresh_from_db()
         self.assertEqual((self.standard.name, self.standard.is_active), ('Standard week', True))
@@ -324,7 +324,7 @@ class TemplateMischiefTests(TemplateScenario):
         self.assertFalse(TemplateList.objects.filter(label__startswith='Tampered').exists())
         self.manager.post(self.standard.get_absolute_url(), {'action': 'add_list', **base, 'new-weekdays': ['1', '1', '3']})
         self.assertEqual(TemplateList.objects.get(label='Tampered').weekdays, [1, 3])
-        too_long = self.manager.post(reverse('templates_index'), {'action': 'create', 'name': 'y' * 10000})
+        too_long = self.manager.post(reverse('calendar_management'), {'action': 'create', 'name': 'y' * 10000})
         self.assertTrue(too_long.context['form'].errors)
         for bad in ('abc', '', '-5', '1e3'):
             self.assertEqual(self.manager.post(self.standard.get_absolute_url(), {'action': 'remove_list', 'list_id': bad}).status_code, 404)
@@ -350,7 +350,7 @@ class TemplateMischiefTests(TemplateScenario):
         self.manager.post(self.standard.get_absolute_url(), {'action': 'update_template', 'name': sneaky, 'is_active': 'on'})
         self.manager.post(self.standard.get_absolute_url(), {
             'action': 'add_list', 'new-label': '<svg onload=alert(1)>', 'new-list_type': 'gfs', 'new-weekdays': [2], 'new-reps': []})
-        for response in (self.manager.get(reverse('templates_index')), self.manager.get(self.standard.get_absolute_url()),
+        for response in (self.manager.get(reverse('calendar_management')), self.manager.get(self.standard.get_absolute_url()),
                          self.manager.get(reverse('dashboard'), {'date': self.next_monday.isoformat()}),
                          self.manager.get(reverse('audit_log'))):
             body = response.content.decode()
@@ -394,4 +394,4 @@ class TemplateMischiefTests(TemplateScenario):
                                       details={'list_count': 'lots', 'is_active': 'maybe', 'weekdays': {'x': 1}, 'day': 'Caturday'})
         response = self.manager.get(reverse('audit_log'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Template drafted from past weeks')
+        self.assertContains(response, 'Weekly plan drafted from past weeks')

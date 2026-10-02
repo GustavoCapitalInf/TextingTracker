@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
-{% block title %}{{ template.name }} · Template{% endblock %}
-{% block section_name %}Template{% endblock %}
+{% block title %}{{ template.name }} · Weekly plan{% endblock %}
+{% block section_name %}Calendar Management{% endblock %}
 {% block content %}
-<a class="breadcrumb" href="{% url 'templates_index' %}">← Templates</a>
+<a class="breadcrumb" href="{% url 'calendar_management' %}">← Calendar Management</a>
 <header class="page-head"><div><h1>{{ template.name }}</h1><p>{% if template.is_active %}On: these lists show up as reminders on the Lead lists calendar until you upload their files.{% else %}Off: check the lists below, then turn it on to see them as reminders on the calendar.{% endif %}</p></div><span class="badge {% if template.is_active %}badge-active{% endif %}">{% if template.is_active %}On{% else %}Off{% endif %}</span></header>
-<section class="panel bottom-space"><form method="post" class="panel-body template-settings">{% csrf_token %}<input type="hidden" name="action" value="update_template">{{ settings_form.non_field_errors }}<div class="field">{{ settings_form.name.label_tag }}{{ settings_form.name }}{{ settings_form.name.errors }}</div><label class="checkbox-line" for="{{ settings_form.is_active.id_for_label }}">{{ settings_form.is_active }} {{ settings_form.is_active.label }}</label><div><button class="button button-primary" type="submit">Save template</button></div></form></section>
+<section class="panel bottom-space"><form method="post" class="panel-body template-settings">{% csrf_token %}<input type="hidden" name="action" value="update_template">{{ settings_form.non_field_errors }}<div class="field">{{ settings_form.name.label_tag }}{{ settings_form.name }}{{ settings_form.name.errors }}</div><label class="checkbox-line" for="{{ settings_form.is_active.id_for_label }}">{{ settings_form.is_active }} {{ settings_form.is_active.label }}</label><div><button class="button button-primary" type="submit">Save plan</button></div></form></section>
 <section class="workspace-section section">
   <div class="section-head"><div><h2>Lists each week</h2><p>Each list repeats every week on the days shown. When you upload its file, these reps are picked for you, and you can still change them.</p></div></div>
   {% for slot in slots %}
@@ -15,5 +15,5 @@
   {% empty %}<div class="empty-state bottom-space"><h2>No lists yet</h2><p>Add the lists you usually send each week.</p></div>{% endfor %}
 </section>
 <section class="panel bottom-space"><div class="panel-head"><h2>Add a list</h2></div><form method="post" class="panel-body template-list-form">{% csrf_token %}<input type="hidden" name="action" value="add_list">{% include 'tracker/partials/template_list_fields.html' with form=new_form %}<div><button class="button" type="submit">Add list</button></div></form></section>
-<div class="danger-zone"><form method="post" data-confirm="Delete this template? Lists you already sent won’t change.">{% csrf_token %}<input type="hidden" name="action" value="delete_template"><button class="button button-danger" type="submit">Delete template</button></form></div>
+<div class="danger-zone"><form method="post" data-confirm="Delete this weekly plan? Lists you already sent won’t change.">{% csrf_token %}<input type="hidden" name="action" value="delete_template"><button class="button button-danger" type="submit">Delete plan</button></form></div>
 {% endblock %}

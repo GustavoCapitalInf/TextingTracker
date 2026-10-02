@@ -63,7 +63,7 @@ class PublishForm(forms.Form):
 
 
 class TemplateForm(forms.Form):
-    name = forms.CharField(max_length=120, label='Template name')
+    name = forms.CharField(max_length=120, label='Plan name')
     is_active = forms.BooleanField(required=False, label='Turn on: show these lists as reminders on the calendar')
 
 
@@ -118,7 +118,7 @@ class TextingListForm(forms.Form):
 
 
 class TextingListSettingsForm(TextingListForm):
-    is_active = forms.BooleanField(required=False, label='Show this list for new uploads and templates')
+    is_active = forms.BooleanField(required=False, label='Show this list for new uploads and weekly plans')
 
 
 class TextingListRepsForm(forms.Form):
@@ -132,3 +132,11 @@ class TextingListRepsForm(forms.Form):
 
 class TextingListCreateForm(TextingListForm, TextingListRepsForm):
     field_order = ['name', 'nickname', 'reps']
+
+
+class TextTemplateForm(forms.Form):
+    name = forms.CharField(max_length=80, label='Template name',
+                           widget=forms.TextInput(attrs={'placeholder': 'e.g. Follow-up after no reply'}))
+    body = forms.CharField(max_length=1600, label='Text message', strip=False,
+                           widget=forms.Textarea(attrs={'rows': 6, 'placeholder': 'The exact text reps should send.'}),
+                           help_text='Reps see this exactly as written, line breaks included, and can copy it with one tap.')

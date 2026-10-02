@@ -34,7 +34,7 @@ class AppearanceTests(Scenario):
             self.assertEqual((html_theme(page), color_scheme(page), pressed(page)), ('dark', 'dark', ['dark']))
 
     def test_choosing_light_is_remembered_and_returns_to_the_same_page(self):
-        here = reverse('templates_index') + '?week=2026-10-05'
+        here = reverse('calendar_management') + '?week=2026-10-05'
         response = self.choose(self.manager, 'light', here)
         self.assertRedirects(response, here, fetch_redirect_response=False)
         cookie = response.cookies[THEME_COOKIE]
@@ -42,7 +42,7 @@ class AppearanceTests(Scenario):
         self.assertTrue(cookie['httponly'])
         self.assertEqual(cookie['samesite'], 'Lax')
         self.assertGreater(int(cookie['max-age']), 300 * 24 * 60 * 60)
-        for name in ('dashboard', 'templates_index', 'texting_lists_index', 'team', 'audit_log', 'upload_new'):
+        for name in ('dashboard', 'calendar_management', 'text_templates', 'texting_lists_index', 'team', 'audit_log', 'upload_new'):
             page = self.manager.get(reverse(name))
             self.assertEqual((html_theme(page), color_scheme(page), pressed(page)), ('light', 'light', ['light']), name)
 

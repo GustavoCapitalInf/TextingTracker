@@ -58,7 +58,7 @@ class TemplateLearningTests(TemplateScenario):
         self.sent('Too old', 'gfs', [self.blake], [this_week - timedelta(weeks=6)])
         import_workbook(xlsx(unique_numbers(2)), self.admin, 'Never sent', list_type='gfs')
 
-        response = self.manager.post(reverse('templates_index'), {'action': 'suggest'})
+        response = self.manager.post(reverse('calendar_management'), {'action': 'suggest'})
         template = ScheduleTemplate.objects.get()
         self.assertRedirects(response, template.get_absolute_url())
         self.assertFalse(template.is_active)
@@ -70,17 +70,17 @@ class TemplateLearningTests(TemplateScenario):
             ('organic text- Clean', 'ringcentral', [1, 2, 3, 4], 'Used in 2 of the last 4 weeks', {self.anthony.pk, self.erik.pk}),
             ('Holiday blast', 'gfs', [2], 'Used in 1 of the last 4 weeks', {self.blake.pk}),
         ])
-        self.assertContains(self.manager.get(reverse('audit_log')), 'Template drafted from past weeks')
+        self.assertContains(self.manager.get(reverse('audit_log')), 'Weekly plan drafted from past weeks')
 
     def test_nothing_to_learn_from_yet(self):
-        response = self.manager.post(reverse('templates_index'), {'action': 'suggest'}, follow=True)
+        response = self.manager.post(reverse('calendar_management'), {'action': 'suggest'}, follow=True)
         self.assertContains(response, 'no lists from the last 4 weeks')
         self.assertFalse(ScheduleTemplate.objects.exists())
 
     def test_reps_who_left_the_group_are_not_suggested(self):
         self.sent('organic text- Clean', 'ringcentral', [self.anthony, self.erik], [week_start(self.today) - timedelta(days=6)])
         self.erik.list_memberships.all().delete()
-        self.manager.post(reverse('templates_index'), {'action': 'suggest'})
+        self.manager.post(reverse('calendar_management'), {'action': 'suggest'})
         self.assertEqual(list(TemplateList.objects.get().reps.all()), [self.anthony])
 
 
@@ -91,7 +91,7 @@ class TemplateEditingTests(TemplateScenario):
         return {f'{prefix}-{key}': value for key, value in data.items()}
 
     def test_admin_builds_a_template_by_hand(self):
-        response = self.manager.post(reverse('templates_index'), {'action': 'create', 'name': 'Clean week'})
+        response = self.manager.post(reverse('calendar_management'), {'action': 'create', 'name': 'Clean week'})
         template = ScheduleTemplate.objects.get(name='Clean week')
         self.assertRedirects(response, template.get_absolute_url())
         self.manager.post(template.get_absolute_url(), {'action': 'add_list', **self.list_data()})
@@ -140,20 +140,20 @@ class TemplateEditingTests(TemplateScenario):
     def test_reps_cannot_see_or_change_templates(self):
         template, slot, _ = self.template()
         rep = self.signed_in(self.anthony)
-        for method, url, data in [('get', reverse('templates_index'), {}), ('post', reverse('templates_index'), {'action': 'suggest'}),
+        for method, url, data in [('get', reverse('calendar_management'), {}), ('post', reverse('calendar_management'), {'action': 'suggest'}),
                                   ('get', template.get_absolute_url(), {}),
                                   ('post', template.get_absolute_url(), {'action': 'delete_template'}),
                                   ('post', template.get_absolute_url(), {'action': 'remove_list', 'list_id': slot.pk})]:
             with self.subTest(method=method, url=url):
                 self.assertEqual(getattr(rep, method)(url, data).status_code, 403)
         self.assertEqual(TemplateList.objects.filter(template=template).count(), 2)
-        self.assertNotContains(rep.get(reverse('dashboard')), reverse('templates_index'))
+        self.assertNotContains(rep.get(reverse('dashboard')), reverse('calendar_management'))
 
     def test_names_are_shown_as_plain_text(self):
         template, slot, _ = self.template(name='<script>alert("t")</script>')
         TemplateList.objects.filter(pk=slot.pk).update(label='<img src=x onerror=alert(1)>')
         next_monday = week_start(self.today) + timedelta(weeks=1)
-        for response in (self.manager.get(reverse('templates_index')), self.manager.get(template.get_absolute_url()),
+        for response in (self.manager.get(reverse('calendar_management')), self.manager.get(template.get_absolute_url()),
                          self.manager.get(reverse('dashboard'), {'date': next_monday.isoformat()})):
             self.assertNotIn('<script>alert("t")', response.content.decode())
             self.assertNotIn('<img src=x onerror', response.content.decode())
@@ -213,7 +213,7 @@ class TemplatePlanningTests(TemplateScenario):
         initial = review.context['form'].initial
         self.assertEqual(initial['dates'].split('\n'), [day.isoformat() for day in self.days[1:5]])
         self.assertEqual((initial['rep_count'], sorted(initial['reps'])), (2, sorted([self.anthony.pk, self.erik.pk])))
-        self.assertContains(review, 'Days and reps were picked from your “Standard week” template')
+        self.assertContains(review, 'Days and reps were picked from your “Standard week” weekly plan')
         self.assertEqual(self.planned(self.manager, self.monday)[self.days[1]], [('organic text- Clean', 'uploaded')])
 
         self.split_via_ui(upload, self.days[1:5], [self.anthony, self.erik])

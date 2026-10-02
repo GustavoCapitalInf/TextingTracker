@@ -24,16 +24,16 @@ from .appearance import THEME_COOKIE, THEME_COOKIE_AGE, THEMES
 from .authentication import is_throttled, register_failure, reset_account_limit, client_ip
 from .forms import (
     UploadForm, PublishForm, ListTypeForm, TemplateForm, TemplateListForm, TextingListCreateForm,
-    TextingListRepsForm, TextingListSettingsForm,
+    TextingListRepsForm, TextingListSettingsForm, TextTemplateForm,
 )
 from .account_forms import RepCreationForm, RepMembershipForm
 from .accounts import create_rep, reset_rep_password, update_rep_memberships
 from .audit_presenter import present_events
 from .models import (
     Assignment, ImportBatch, ImportRow, PlanSkip, RepBatch, AuditEvent, RepListMembership, ScheduleTemplate, TemplateList,
-    TextingList,
+    TextingList, TextTemplate,
 )
-from . import planning, services, texting_lists
+from . import planning, services, text_templates, texting_lists
 
 
 def manager_required(view):
@@ -568,30 +568,30 @@ def error_500(request):
 
 @manager_required
 @require_http_methods(['GET', 'POST'])
-def templates_index(request):
+def calendar_management(request):
     form = TemplateForm(request.POST if request.POST.get('action') == 'create' else None, initial={'is_active': False})
     if request.method == 'POST':
         action = request.POST.get('action')
         try:
             if action == 'suggest':
                 template = planning.suggest_template(request.user)
-                messages.success(request, 'Template built from your last 4 weeks. Check the lists, then turn it on.')
+                messages.success(request, 'Weekly plan built from your last 4 weeks. Check the lists, then turn it on.')
                 return redirect(template)
             if action == 'create' and form.is_valid():
                 template = planning.create_template(request.user, form.cleaned_data['name'])
-                messages.success(request, 'Template created. Now add the lists you send each week.')
+                messages.success(request, 'Weekly plan created. Now add the lists you send each week.')
                 return redirect(template)
             if action not in ('suggest', 'create'):
-                messages.error(request, 'Choose a valid template action.')
+                messages.error(request, 'Choose a valid weekly plan action.')
         except ValidationError as exc:
             messages.error(request, ' '.join(exc.messages))
     templates = ScheduleTemplate.objects.prefetch_related('lists')
-    return render(request, 'tracker/templates.html', {'templates': templates, 'form': form})
+    return render(request, 'tracker/calendar_management.html', {'templates': templates, 'form': form})
 
 
 @manager_required
 @require_http_methods(['GET', 'POST'])
-def template_detail(request, template_id):
+def calendar_plan(request, template_id):
     template = get_object_or_404(ScheduleTemplate, pk=template_id)
     action = request.POST.get('action') if request.method == 'POST' else None
     list_id = request.POST.get('list_id', '')
@@ -604,7 +604,7 @@ def template_detail(request, template_id):
         except ValidationError as exc:
             settings_form.add_error(None, exc)
         else:
-            messages.success(request, 'Template turned on. Its lists now show up as reminders on the calendar.' if template.is_active else 'Template saved. It’s off, so it shows no reminders on the calendar.')
+            messages.success(request, 'Weekly plan turned on. Its lists now show up as reminders on the calendar.' if template.is_active else 'Weekly plan saved. It’s off, so it shows no reminders on the calendar.')
             return redirect(template)
     elif action in ('add_list', 'save_list'):
         slot = None
@@ -625,14 +625,14 @@ def template_detail(request, template_id):
     elif action == 'remove_list':
         slot = get_object_or_404(TemplateList, pk=list_id if list_id.isdecimal() else 0, template=template)
         planning.remove_template_list(request.user, slot)
-        messages.success(request, 'List removed from the template.')
+        messages.success(request, 'List removed from the weekly plan.')
         return redirect(template)
     elif action == 'delete_template':
         planning.delete_template(request.user, template)
-        messages.success(request, 'Template deleted. Lists you already sent are unchanged.')
-        return redirect('templates_index')
+        messages.success(request, 'Weekly plan deleted. Lists you already sent are unchanged.')
+        return redirect('calendar_management')
     elif action is not None and action != 'update_template':
-        messages.error(request, 'Choose a valid template action.')
+        messages.error(request, 'Choose a valid weekly plan action.')
     slots = list(template.lists.prefetch_related('reps'))
     for slot in slots:
         if not hasattr(slot, 'bound_form'):
@@ -640,7 +640,7 @@ def template_detail(request, template_id):
                 'label': slot.label, 'list_type': slot.list_type, 'weekdays': slot.weekdays,
                 'reps': [rep.pk for rep in slot.reps.all()],
             })
-    return render(request, 'tracker/template_detail.html', {
+    return render(request, 'tracker/calendar_plan.html', {
         'template': template, 'settings_form': settings_form, 'slots': slots, 'new_form': new_form,
     })
 
@@ -707,7 +707,7 @@ def texting_list_detail(request, list_id):
     try:
         if action == 'update' and settings_form.is_valid():
             texting_lists.update_list(request.user, item, **settings_form.cleaned_data)
-            messages.success(request, 'Texting list saved.' if item.is_active else 'Texting list saved. It’s hidden from new uploads and templates.')
+            messages.success(request, 'Texting list saved.' if item.is_active else 'Texting list saved. It’s hidden from new uploads and weekly plans.')
             return redirect(item)
         if action == 'members' and reps_form.is_valid():
             added, removed = texting_lists.set_members(request.user, item, reps_form.cleaned_data['reps'])
@@ -727,3 +727,49 @@ def texting_list_detail(request, list_id):
         'item': item, 'settings_form': settings_form, 'reps_form': reps_form, 'usage': usage,
         'can_delete': not any(usage.values()), 'member_count': len(members),
     })
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def text_templates_index(request):
+    """Every signed-in rep can read and copy templates; only admins add them."""
+    form = TextTemplateForm(request.POST or None) if request.user.is_staff else None
+    if request.method == 'POST':
+        if not request.user.is_staff:
+            raise PermissionDenied('Only admins can add templates.')
+        if form.is_valid():
+            try:
+                item = text_templates.create_template(request.user, **form.cleaned_data)
+            except ValidationError as exc:
+                form.add_error(None, exc)
+            else:
+                messages.success(request, f'Template “{item.name}” added. Reps can see it now.')
+                return redirect('text_templates')
+    return render(request, 'tracker/text_templates.html', {'items': TextTemplate.objects.all(), 'form': form})
+
+
+@manager_required
+@require_http_methods(['GET', 'POST'])
+def text_template_detail(request, template_id):
+    item = get_object_or_404(TextTemplate, pk=template_id)
+    action = request.POST.get('action') if request.method == 'POST' else None
+    form = TextTemplateForm(request.POST if action == 'update' else None, initial={'name': item.name, 'body': item.body})
+    if action == 'update' and form.is_valid():
+        try:
+            text_templates.update_template(request.user, item, **form.cleaned_data)
+        except ValidationError as exc:
+            form.add_error(None, exc)
+        else:
+            messages.success(request, f'Template “{item.name}” saved.')
+            return redirect('text_templates')
+    elif action == 'delete':
+        name = item.name
+        text_templates.delete_template(request.user, item)
+        messages.success(request, f'Template “{name}” deleted.')
+        return redirect('text_templates')
+    elif action not in (None, 'update'):
+        messages.error(request, 'Choose a valid template action.')
+    if action == 'update':
+        item.refresh_from_db()
+    return render(request, 'tracker/text_template_detail.html', {'item': item, 'form': form})
+

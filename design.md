@@ -4,13 +4,17 @@ The current direction is a dark operations console, drawn from ObsidianUI, Arc U
 
 ## Shared layout
 
-A fixed left sidebar holds the brand mark, the navigation (icon plus label; managers see Lead lists, Upload list, Templates, Accounts and History, reps see Your leads), the Dark / Light / Auto switch, and a user card with Account (admins only) and Sign out. The sign-in page shows the same switch in its top bar. A slim sticky top bar shows the section name, the demo chip when relevant, and today's company date. Page content sits in a centered column of at most 1360px. Below 900px the sidebar becomes a top block: brand, then the icon-only appearance switch and user actions, then navigation as wrapping pills. There is no hidden menu and no JavaScript navigation.
+A fixed left sidebar holds the brand mark, the navigation (icon plus label; managers see Lead lists, Upload list, Calendar Management, Templates, Texting lists, Accounts and History; reps see Your leads and Templates), the Dark / Light / Auto switch, and a user card with Account (admins only) and Sign out. The sign-in page shows the same switch in its top bar. A slim sticky top bar shows the section name, the demo chip when relevant, and today's company date. Page content sits in a centered column of at most 1360px. Below 900px the sidebar becomes a top block: brand, then the icon-only appearance switch and user actions, then navigation as wrapping pills. There is no hidden menu and no JavaScript navigation.
 
 Page heads use a large, tightly tracked title with a muted one-line description and actions on the right. Content is cards (`panel`), tables inside cards, stat tiles, and rows. Wide tables scroll inside their card on phones; a rep's phone list never scrolls sideways.
 
 ## Calendar
 
-Seven rounded day tiles. Today has a soft blue ring and a Today label; the manager's selected day is slightly lighter. Each list is a small nested card with a compact group name (GFS · Donut, Ringcentral · Clean), the list name, counts, and a dotted status (Sent, Available today, Upcoming). Planned entries from templates use a dashed outline, a "Planned" prefix, an Upload link and Skip this day. Rep calendars never show planned entries or numbers for other days. Below 768px days stack as rows with the date on the left.
+Seven rounded day tiles. Today has a soft blue ring and a Today label; the manager's selected day is slightly lighter. Each list is a small nested card with a compact group name (GFS · Donut, Ringcentral · Clean), the list name, counts, and a dotted status (Sent, Available today, Upcoming). Planned entries from Calendar Management (weekly plans) use a dashed outline, a "Planned" prefix, an Upload link and Skip this day. Rep calendars never show planned entries or numbers for other days. Below 768px days stack as rows with the date on the left.
+
+## Templates page
+
+Text templates are cards: the name, the exact message in a soft inset box that keeps line breaks, a character count, and a **Copy text** button that appears only when the browser can copy (it briefly reads "Copied"). Admins also get an Edit link on each card and an "Add a template" panel beside the list; reps see the cards alone, full width, with a larger copy button on phones. Empty states tell admins to add the first template and tell reps their admin hasn't added any yet.
 
 ## Color and typography
 

@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}{{ item.name }} · Template{% endblock %}
+{% block section_name %}Templates{% endblock %}
+{% block content %}
+<a class="breadcrumb" href="{% url 'text_templates' %}">← Templates</a>
+<header class="page-head"><div><h1>{{ item.name }}</h1><p>Changes show up for reps as soon as you save.</p></div></header>
+<section class="panel panel-narrow bottom-space"><div class="panel-head"><h2>Edit template</h2></div>
+  <form method="post" class="panel-body form-stack">{% csrf_token %}<input type="hidden" name="action" value="update">{{ form.non_field_errors }}
+    <div class="field">{{ form.name.label_tag }}{{ form.name }}{{ form.name.errors }}</div>
+    <div class="field">{{ form.body.label_tag }}{{ form.body }}<div class="help-text">{{ form.body.help_text }}</div>{{ form.body.errors }}</div>
+    <div><button class="button button-primary" type="submit">Save template</button></div>
+  </form>
+</section>
+<div class="danger-zone"><form method="post" data-confirm="Delete the “{{ item.name }}” template? Reps will stop seeing it.">{% csrf_token %}<input type="hidden" name="action" value="delete"><button class="button button-danger" type="submit">Delete template</button></form></div>
+{% endblock %}

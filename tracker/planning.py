@@ -205,7 +205,7 @@ def split_prefill(upload, today):
     dates = [day for day in upcoming if day not in covered and day not in skipped]
     planned_reps = list(slot.reps.all())
     reps = list(eligible_reps(upload.list_type).filter(pk__in=[rep.pk for rep in planned_reps]))
-    notes = [f"Days and reps were picked from your “{slot.template.name}” template. You can change anything before creating the lists."]
+    notes = [f"Days and reps were picked from your “{slot.template.name}” weekly plan. You can change anything before creating the lists."]
     if len(reps) < len(planned_reps):
         missing = len(planned_reps) - len(reps)
         group = texting_lists.label(upload.list_type)
@@ -231,7 +231,7 @@ def create_template(actor, name):
     _require_manager(actor)
     name = (name or "").strip()
     if not name:
-        raise ValidationError("Give the template a name.")
+        raise ValidationError("Give the weekly plan a name.")
     template = ScheduleTemplate.objects.create(name=name[:120], created_by=actor)
     write_audit(actor, "template.created", template)
     return template
@@ -241,7 +241,7 @@ def update_template(actor, template, *, name, is_active):
     _require_manager(actor)
     name = (name or "").strip()
     if not name:
-        raise ValidationError("Give the template a name.")
+        raise ValidationError("Give the weekly plan a name.")
     template.name, template.is_active = name[:120], bool(is_active)
     template.save(update_fields=["name", "is_active", "updated_at"])
     write_audit(actor, "template.updated", template, {"is_active": template.is_active})
@@ -267,7 +267,7 @@ def save_template_list(actor, template, *, label, list_type, weekdays, reps, slo
         if slot is None:
             slot = TemplateList(template=template)
         elif slot.template_id != template.pk:
-            raise ValidationError("This list belongs to another template.")
+            raise ValidationError("This list belongs to another weekly plan.")
         slot.label, slot.list_type, slot.weekdays = label[:120], list_type, days
         slot.save()
         slot.reps.set(allowed)

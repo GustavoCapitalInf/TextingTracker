@@ -33,6 +33,28 @@
     update();
   });
 
+  // Templates: copy a message's exact text. Without script the button stays hidden
+  // and the text can still be selected by hand.
+  document.querySelectorAll("[data-copy-target]").forEach((button) => {
+    const source = document.getElementById(button.dataset.copyTarget);
+    if (!source || !navigator.clipboard) return;
+    const label = button.textContent;
+    let timer;
+    button.hidden = false;
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(source.textContent);
+        button.dataset.state = "success";
+        button.textContent = "Copied";
+      } catch {
+        button.dataset.state = "error";
+        button.textContent = "Couldn’t copy. Select the text instead.";
+      }
+      clearTimeout(timer);
+      timer = setTimeout(() => { delete button.dataset.state; button.textContent = label; }, 2500);
+    });
+  });
+
   document.querySelectorAll("[data-dropzone]").forEach((zone) => {
     const input = zone.querySelector('input[type="file"]');
     const feedback = zone.querySelector("[data-file-feedback]");
