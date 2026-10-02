@@ -62,7 +62,9 @@ def run(base_url, credentials_path):
         expect(manager.locator('.row-ready')).to_have_count(20)
         form = manager.locator('[data-split-form]')
         today = date.fromisoformat(form.get_attribute('data-today'))
-        manager.get_by_label('List dates', exact=True).fill(today.isoformat() + '\n' + (today + timedelta(days=1)).isoformat())
+        for day in (today, today + timedelta(days=1)):  # day buttons; today starts ticked
+            if not form.locator(f'input[name=days][value="{day.isoformat()}"]').is_checked():
+                form.locator(f'label:has(input[name=days][value="{day.isoformat()}"])').click()
         manager.get_by_label('Split into how many people?', exact=True).fill('2')
         form.locator('input[name=reps]').nth(0).check()
         form.locator('input[name=reps]').nth(1).check()

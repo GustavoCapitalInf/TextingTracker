@@ -126,8 +126,21 @@ input[type="file"]::file-selector-button { min-height: 34px; margin-right: var(-
 .date-control { display: flex; align-items: flex-end; gap: var(--space-sm); }
 .date-control label { display: block; margin-bottom: var(--space-xs); color: var(--color-muted); font-size: var(--text-xs); }
 .split-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-xl); }
-.preset-buttons { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-bottom: var(--space-md); }
-.preset-buttons .button { min-height: 32px; padding: 0 12px; font-size: var(--text-xs); }
+.split-dates { display: grid; gap: var(--space-md); }
+.split-week-head { display: flex; align-items: baseline; gap: var(--space-sm); margin-bottom: var(--space-sm); color: var(--color-muted); font-size: var(--text-xs); }
+.split-week-head strong { color: var(--color-ink-2); font-size: var(--text-sm); font-weight: 600; }
+.day-choices { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-xs); }
+.day-choice { position: relative; display: grid; justify-items: center; gap: 1px; min-height: 52px; padding: 7px 2px; border: 1px solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-control); color: var(--color-ink); cursor: pointer; user-select: none; transition: background var(--dur-short) var(--ease-out), border-color var(--dur-short) var(--ease-out), color var(--dur-short) var(--ease-out); }
+.day-choice input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.day-choice-name { color: var(--color-muted); font-size: var(--text-2xs); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.day-choice-date { font-size: var(--text-md); font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.day-choice-today { border-color: var(--color-accent-strong); }
+.day-choice:has(input:checked) { border-color: var(--color-primary); background: var(--color-primary); color: var(--color-primary-ink); }
+.day-choice:has(input:checked) .day-choice-name { color: var(--color-primary-ink); opacity: 0.8; }
+.day-choice:has(input:focus-visible) { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.day-choice:has(input:disabled) { opacity: 0.4; cursor: not-allowed; }
+.other-dates summary { width: fit-content; color: var(--color-ink-2); font-size: var(--text-sm); font-weight: 550; cursor: pointer; }
+.other-dates[open] summary { margin-bottom: var(--space-sm); }
 .rep-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--space-sm); }
 .rep-choices label, .weekday-choices label, .membership-field > div label {
   display: flex; align-items: center; gap: var(--space-sm); min-height: 40px; padding: 0 var(--space-md); border: 1px solid var(--color-rule); border-radius: var(--radius-sm);
@@ -348,6 +361,7 @@ body.privacy-active .app-shell { pointer-events: none; user-select: none; }
   tbody tr:hover td { background: var(--color-row-hover); }
   .table-primary:hover, .calendar-day-link:hover, .breadcrumb:hover, .text-link:hover { color: var(--color-ink); text-decoration: underline; }
   .rep-choices label:hover, .weekday-choices label:hover, .membership-field > div label:hover { border-color: var(--color-rule-strong); }
+  .day-choice:not(:has(input:disabled)):not(:has(input:checked)):hover { border-color: var(--color-rule-strong); background: var(--color-control-hover); }
   .calendar-skip:hover, .calendar-plan-action:hover { color: var(--color-ink); }
   .theme-options button[aria-pressed="false"]:hover { color: var(--color-ink); }
 }

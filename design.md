@@ -12,6 +12,10 @@ Page heads use a large, tightly tracked title with a muted one-line description 
 
 Seven rounded day tiles. Today has a soft blue ring and a Today label; the manager's selected day is slightly lighter. Each list is a small nested card with a compact group name (GFS · Donut, Ringcentral · Clean), the list name, counts, and a dotted status (Sent, Available today, Upcoming). Planned entries from Calendar Management (weekly plans) use a dashed outline, a "Planned" prefix, an Upload link and Skip this day. Rep calendars never show planned entries or numbers for other days. Below 768px days stack as rows with the date on the left.
 
+## Split dates
+
+On an upload's Split and assign panel, list dates are two rows of seven day buttons (Mon–Sun) headed "This week" and "Next week" with their date range, or "Week of …" when a planned upload starts later. Each button shows the short weekday and day number; a picked day fills with the primary color, today has the soft blue ring, and past days are dimmed and can't be picked. A collapsed "Other dates" box takes anything outside the two weeks.
+
 ## Templates page
 
 Text templates are cards: the name, the exact message in a soft inset box that keeps line breaks, a character count, and a **Copy text** button that appears only when the browser can copy (it briefly reads "Copied"). Admins also get an Edit link on each card and an "Add a template" panel beside the list; reps see the cards alone, full width, with a larger copy button on phones. Empty states tell admins to add the first template and tell reps their admin hasn't added any yet.

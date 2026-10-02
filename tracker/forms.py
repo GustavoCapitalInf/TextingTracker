@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 import re
 
 from django import forms
@@ -24,8 +24,37 @@ class RepChoices(forms.ModelMultipleChoiceField):
         return obj.get_full_name() or obj.username
 
 
+def _parse_date_lines(raw):
+    """Dates typed one per line (or comma-separated) as YYYY-MM-DD; [] when blank."""
+    parts = [s.strip() for s in re.split(r'[\n,]+', raw or '') if s.strip()]
+    if len(parts) > 31:
+        raise ValidationError('Choose between 1 and 31 list dates.')
+    try:
+        if any(not re.fullmatch(r'\d{4}-\d{2}-\d{2}', part) for part in parts):
+            raise ValueError
+        dates = [date.fromisoformat(part) for part in parts]
+    except ValueError:
+        raise ValidationError('Use YYYY-MM-DD for every date.')
+    if len(set(dates)) != len(dates):
+        raise ValidationError('Each list date must appear once.')
+    return dates
+
+
+class DayChoices(forms.MultipleChoiceField):
+    """Ticked day buttons, each a YYYY-MM-DD value. Any well-formed date is accepted; clean() checks the rest."""
+    widget = forms.CheckboxSelectMultiple
+
+    def valid_value(self, value):
+        return bool(re.fullmatch(r'\d{4}-\d{2}-\d{2}', str(value)))
+
+
 class PublishForm(forms.Form):
-    dates = forms.CharField(label='List dates', help_text='One date per line, using YYYY-MM-DD.', widget=forms.Textarea(attrs={'rows': 4, 'placeholder': '2026-10-05'}))
+    days = DayChoices(required=False, label='List dates')
+    other_dates = forms.CharField(required=False, label='Other dates',
+                                  help_text='Dates outside these two weeks, one per line as YYYY-MM-DD.',
+                                  widget=forms.Textarea(attrs={'rows': 3, 'placeholder': '2026-10-19'}))
+    # Older pages, scripts and tests post every date in one `dates` field; it is still accepted, never rendered.
+    dates = forms.CharField(required=False, widget=forms.Textarea)
     rep_count = forms.IntegerField(min_value=1, max_value=100, label='Split into how many people?', initial=1)
     reps = RepChoices(queryset=get_user_model().objects.none(), label='Assign to reps', widget=forms.CheckboxSelectMultiple)
 
@@ -34,32 +63,75 @@ class PublishForm(forms.Form):
         super().__init__(*args, **kwargs)
         if list_type and texting_lists.get(list_type):
             self.fields['reps'].queryset = eligible_reps(list_type).order_by('first_name', 'last_name', 'username')
+        self.today = timezone.localdate()
+        if self.is_bound:
+            chosen = self._dates_from(self.data.getlist('days') if hasattr(self.data, 'getlist') else self.data.get('days') or [])
+        else:
+            # A planned upload pre-fills its days; otherwise today is ticked.
+            try:
+                chosen = _parse_date_lines(self.initial.get('dates')) or [self.today]
+            except ValidationError:
+                chosen = [self.today]
+        future = [day for day in chosen if day >= self.today]
+        self.week_one = _week_start(min(future) if future else self.today)
+        self.window = [self.week_one + timedelta(days=offset) for offset in range(14)]
         if not self.is_bound:
-            self.fields['dates'].initial = timezone.localdate().isoformat()
+            self.initial = {**self.initial,
+                            'days': [day.isoformat() for day in chosen if day in self.window],
+                            'other_dates': '\n'.join(day.isoformat() for day in chosen if day not in self.window)}
 
-    def clean_dates(self):
-        raw = self.cleaned_data['dates']
-        parts = [s.strip() for s in re.split(r'[\n,]+', raw) if s.strip()]
-        if not 1 <= len(parts) <= 31:
-            raise ValidationError('Choose between 1 and 31 list dates.')
-        try:
-            if any(not re.fullmatch(r'\d{4}-\d{2}-\d{2}', part) for part in parts):
-                raise ValueError
-            dates = [date.fromisoformat(part) for part in parts]
-        except ValueError:
-            raise ValidationError('Use YYYY-MM-DD for every date.')
-        if len(set(dates)) != len(dates):
-            raise ValidationError('Each list date must appear once.')
-        if min(dates) < timezone.localdate():
-            raise ValidationError('List dates must be today or later.')
-        return sorted(dates)
+    @staticmethod
+    def _dates_from(values):
+        result = []
+        for value in values:
+            try:
+                result.append(date.fromisoformat(value))
+            except (TypeError, ValueError):
+                continue
+        return result
+
+    def day_weeks(self):
+        """Two rows of Mon–Sun buttons for the template, with what each button shows."""
+        picked = set(self['days'].value() or [])
+        rows = []
+        for index in (0, 1):
+            first = self.week_one + timedelta(weeks=index)
+            this_week = _week_start(self.today)
+            title = 'This week' if first == this_week else 'Next week' if first == this_week + timedelta(weeks=1) else f'Week of {first:%b} {first.day}'
+            last = first + timedelta(days=6)
+            span = f'{first:%b} {first.day} – {last.day}' if first.month == last.month else f'{first:%b} {first.day} – {last:%b} {last.day}'
+            days = [{'iso': day.isoformat(), 'name': f'{day:%a}', 'number': day.day, 'month': f'{day:%b}',
+                     'label': f'{day:%A}, {day:%B} {day.day}', 'checked': day.isoformat() in picked,
+                     'past': day < self.today, 'today': day == self.today}
+                    for day in (first + timedelta(days=offset) for offset in range(7))]
+            rows.append({'title': title, 'span': span, 'days': days})
+        return rows
 
     def clean(self):
         data = super().clean()
+        chosen, problems = set(self._dates_from(data.get('days') or [])), []
+        for name in ('other_dates', 'dates'):
+            try:
+                chosen.update(_parse_date_lines(data.get(name)))
+            except ValidationError as error:
+                self.add_error(name if name == 'other_dates' else 'days', error)
+                problems.append(name)
+        if not problems:
+            if not chosen:
+                self.add_error('days', 'Pick at least one day.')
+            elif len(chosen) > 31:
+                self.add_error('days', 'Choose between 1 and 31 list dates.')
+            elif min(chosen) < self.today:
+                self.add_error('days', 'List dates must be today or later.')
+            else:
+                data['dates'] = sorted(chosen)
         if 'reps' in data and 'rep_count' in data and len(data['reps']) != data['rep_count']:
             self.add_error('reps', f"Select exactly {data['rep_count']} reps to match the split.")
         return data
 
+
+def _week_start(day):
+    return day - timedelta(days=day.weekday())
 
 
 class TemplateForm(forms.Form):

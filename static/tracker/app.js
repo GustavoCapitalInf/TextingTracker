@@ -85,62 +85,6 @@
     });
   });
 
-  document.querySelectorAll("[data-split-form]").forEach((form) => {
-    const dates = form.querySelector('[name="dates"]');
-    const today = form.dataset.today;
-    if (!dates || !today) return;
-    const toISO = (date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
-    form.querySelectorAll("[data-date-preset]").forEach((button) => {
-      button.addEventListener("click", () => {
-        // Use the server's company calendar, independent of browser timezone.
-        const date = new Date(`${today}T12:00:00Z`);
-        const targetDay = button.dataset.datePreset === "monday" ? 1 : 2;
-        date.setUTCDate(date.getUTCDate() + ((targetDay - date.getUTCDay() + 7) % 7));
-        const values = [];
-        const count = targetDay === 1 ? 1 : 4;
-        for (let index = 0; index < count; index += 1) {
-          values.push(toISO(date));
-          date.setUTCDate(date.getUTCDate() + 1);
-        }
-        dates.value = values.join("\n");
-        dates.dispatchEvent(new Event("input", { bubbles: true }));
-        dates.focus();
-      });
-    });
-  });
-
-  // Appearance: apply the choice at once and save it in the background, so the page
-  // (and anything typed into it) stays put. Without script the form posts and the
-  // server redirects back. If saving fails, fall back to that same plain post.
-  document.querySelectorAll("form[data-theme-switch]").forEach((form) => {
-    const apply = (theme) => {
-      document.documentElement.dataset.theme = theme;
-      document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", theme === "system" ? "dark light" : theme);
-      document.querySelectorAll('form[data-theme-switch] button[name="theme"]').forEach((button) => {
-        button.setAttribute("aria-pressed", String(button.value === theme));
-      });
-    };
-    form.addEventListener("submit", async (event) => {
-      const theme = event.submitter?.value;
-      if (!theme) return;
-      event.preventDefault();
-      apply(theme);
-      const body = new FormData(form);
-      body.set("theme", theme);
-      try {
-        const response = await fetch(form.action, {
-          method: "POST", body, credentials: "same-origin", cache: "no-store",
-          headers: { "Accept": "application/json" },
-        });
-        if (!response.ok) throw new Error("Not saved");
-      } catch {
-        const field = Object.assign(document.createElement("input"), { type: "hidden", name: "theme", value: theme });
-        form.append(field);
-        HTMLFormElement.prototype.submit.call(form);
-      }
-    });
-  });
-
   document.querySelectorAll("form").forEach((form) => {
     if (form.method === "dialog" || form.hasAttribute("data-theme-switch")) return;
     form.addEventListener("submit", (event) => {
