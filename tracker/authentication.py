@@ -13,6 +13,12 @@ from .models import SecurityThrottle
 
 
 def client_ip(request):
+    if getattr(settings, 'TRUST_VERCEL_IP_HEADERS', False):
+        for header in ('HTTP_X_VERCEL_FORWARDED_FOR', 'HTTP_X_REAL_IP'):
+            try:
+                return str(ip_address(request.META.get(header, '').split(',')[0].strip()))
+            except ValueError:
+                continue
     remote = request.META.get('REMOTE_ADDR', '')
     # Production Gunicorn is loopback-only. Apache overwrites forwarding headers.
     if not settings.DEBUG and remote in ('127.0.0.1', '::1'):

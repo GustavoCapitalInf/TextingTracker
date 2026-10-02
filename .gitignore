@@ -24,3 +24,6 @@ artifacts/
 
 # Generated code map for the AI assistant (graphify); rebuild locally
 graphify-out/
+
+# Vercel CLI project link (its .env.local holds a token; .env.* above covers it)
+.vercel/

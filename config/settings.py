@@ -8,7 +8,9 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
-ENVIRONMENT = os.getenv('DJANGO_ENV', 'development')
+# Vercel production and preview deployments always run in production mode, whatever else is set.
+ON_VERCEL = os.getenv('VERCEL_ENV') in ('production', 'preview')
+ENVIRONMENT = 'production' if ON_VERCEL else os.getenv('DJANGO_ENV', 'development')
 if ENVIRONMENT not in {'development', 'production'}:
     raise ImproperlyConfigured('DJANGO_ENV must be development or production.')
 DEBUG = ENVIRONMENT == 'development'
@@ -23,9 +25,17 @@ if not DEBUG and (len(SECRET_KEY) < 50 or SECRET_KEY.startswith('development-'))
     raise ImproperlyConfigured('Production requires a random secret of at least 50 characters.')
 
 ALLOWED_HOSTS = [v.strip() for v in os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,[::1]' if DEBUG else '').split(',') if v.strip()]
+CSRF_TRUSTED_ORIGINS = [v.strip() for v in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if v.strip()]
+if ON_VERCEL:
+    # Vercel supplies this project's own domains: the production domain, the branch URL and
+    # this deployment's URL. A custom domain still goes in DJANGO_ALLOWED_HOSTS.
+    for name in ('VERCEL_PROJECT_PRODUCTION_URL', 'VERCEL_BRANCH_URL', 'VERCEL_URL'):
+        host = os.getenv(name, '').strip().lower()
+        if host and host not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(host)
+            CSRF_TRUSTED_ORIGINS.append(f'https://{host}')
 if not DEBUG and (not ALLOWED_HOSTS or '*' in ALLOWED_HOSTS):
     raise ImproperlyConfigured('Set explicit DJANGO_ALLOWED_HOSTS for production.')
-CSRF_TRUSTED_ORIGINS = [v.strip() for v in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if v.strip()]
 INSTALLED_APPS = [
     'django.contrib.admin', 'django.contrib.auth', 'django.contrib.contenttypes',
     'django.contrib.sessions', 'django.contrib.messages', 'django.contrib.staticfiles',
@@ -65,12 +75,19 @@ if database_url:
     query = parse_qs(parsed.query)
     if 'sslmode' in query:
         options['sslmode'] = query['sslmode'][0]
+    # A pooled URL (PgBouncer in transaction mode, such as Neon's "-pooler" host) hands each
+    # transaction to any server connection, so server-side prepared statements and cursors
+    # must be off. The phone-write lock is transaction-scoped and works through a pooler.
+    pooled = '-pooler.' in (parsed.hostname or '') or os.getenv('DATABASE_POOLED', '') == '1'
+    if pooled:
+        options['prepare_threshold'] = None
     DATABASES = {'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': unquote(parsed.path.lstrip('/')),
         'USER': unquote(parsed.username or ''), 'PASSWORD': unquote(parsed.password or ''),
         'HOST': parsed.hostname or '127.0.0.1', 'PORT': parsed.port or 5432,
         'CONN_MAX_AGE': 60, 'CONN_HEALTH_CHECKS': True, 'OPTIONS': options,
+        'DISABLE_SERVER_SIDE_CURSORS': pooled,
     }}
 else:
     if not DEBUG:
@@ -113,13 +130,17 @@ SECURE_HSTS_PRELOAD = False
 X_FRAME_OPTIONS = 'DENY'
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 DATA_UPLOAD_MAX_MEMORY_SIZE = 6 * 1024 * 1024
-IMPORT_MAX_BYTES = 5 * 1024 * 1024
+# Vercel refuses request bodies over 4.5 MB, so stay under it there (10,000 numbers is ~0.2 MB).
+IMPORT_MAX_BYTES = (4 if ON_VERCEL else 5) * 1024 * 1024
 IMPORT_MAX_ROWS = 10000
 IMPORT_MAX_UNCOMPRESSED_BYTES = 32 * 1024 * 1024
 LOGIN_MAX_ATTEMPTS = 5  # per username, from one address
 LOGIN_ACCOUNT_MAX_ATTEMPTS = 25  # per username, from all addresses
 LOGIN_ADDRESS_MAX_ATTEMPTS = 50  # per address, across usernames
 LOGIN_WINDOW_SECONDS = 15 * 60
+# Vercel overwrites x-vercel-forwarded-for / x-real-ip with the visitor's address, so sign-in
+# limits can trust them there; elsewhere only a loopback proxy's X-Forwarded-For is trusted.
+TRUST_VERCEL_IP_HEADERS = ON_VERCEL
 LOGGING = {'version': 1, 'disable_existing_loggers': False,
            'handlers': {'console': {'class': 'logging.StreamHandler'}},
            'root': {'handlers': ['console'], 'level': 'WARNING'}}

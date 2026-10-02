@@ -2,7 +2,7 @@
 
 An internal phone-list assignment manager for Capital Infusion. Managers import a single-column Excel sheet, divide eligible numbers across dates and reps, and share a link to each batch. Reps sign in with their own accounts and view only their assigned lists for the current company date. Rep lists are read-only; the application does not track calls, interest, or outcomes.
 
-Built with Django 5.2 LTS, server-rendered HTML, PostgreSQL for production, and local browser assets. The dedicated Mac mini deployment uses Apache with HTTPS in front of Gunicorn. No cloud hosting or external font/CDN dependency is required.
+Built with Django 5.2 LTS, server-rendered HTML, PostgreSQL for production, and local browser assets. It is hosted on Vercel with a Neon PostgreSQL database (see docs/vercel-deployment.md); the Mac mini deployment with Apache and Gunicorn remains an alternative. Pages load no external fonts or third-party scripts.
 
 ## Local development
 
@@ -99,6 +99,7 @@ There is no list export feature. Privacy blur and watermarks reduce casual expos
 
 ## Production and operations
 
+- [Hosting on Vercel](docs/vercel-deployment.md): Vercel function, Neon PostgreSQL, environment variables, moving accounts, and limits.
 - [Mac mini deployment](docs/mac-mini-deployment.md): database, HTTPS, service identities, launchd, and first boot checks.
 - [Operations and recovery](docs/operations.md): backups, restore drills, updates, and access administration.
 - [Architecture and access rules](docs/architecture.md): data flow, scheduling, history, and scope of protections.
