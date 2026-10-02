@@ -141,3 +141,23 @@ class ProvisioningTests(Scenario):
         self.assertEqual(members(old.key), {'blake.fiorito'})
         self.assertIn('blake.fiorito', members('gfs'))
         self.assertEqual(len(members('gfs') | members('ringcentral')), 16)
+
+
+class RepPasswordLockTests(Scenario):
+    def test_a_rep_cannot_change_their_own_password_even_with_a_valid_form(self):
+        rep = self.signed_in(self.anthony)
+        change = {'old_password': PASSWORD, 'new_password1': 'Brand-New-Rep-Pass-77', 'new_password2': 'Brand-New-Rep-Pass-77'}
+        self.assertEqual(rep.post(reverse('password_change'), change).status_code, 403)
+        self.assertEqual(rep.post(reverse('team_detail', args=[self.anthony.pk]), {'action': 'reset_password'}).status_code, 403)
+        self.anthony.refresh_from_db()
+        self.assertTrue(self.anthony.check_password(PASSWORD))
+        self.assertFalse(self.anthony.check_password('Brand-New-Rep-Pass-77'))
+        self.assertNotContains(rep.get(reverse('dashboard')), 'href="/account/password/"')
+
+    def test_no_other_way_in_to_change_or_reset_a_password(self):
+        rep = self.signed_in(self.anthony)
+        for url in ('/admin/', '/admin/password_change/', '/password_reset/', '/password_change/',
+                    '/accounts/password_reset/', '/accounts/password_change/', '/reset/x/y/'):
+            with self.subTest(url=url):
+                self.assertEqual(rep.get(url).status_code, 404)
+                self.assertEqual(Client().get(url).status_code, 404)
