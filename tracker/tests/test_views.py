@@ -9,7 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 from openpyxl import Workbook
 
-from tracker.models import Assignment, AuditEvent, ImportBatch, PhoneNumber, SecurityThrottle, RepListMembership, TextingListType
+from tracker.models import Assignment, AuditEvent, ImportBatch, PhoneNumber, RepBatch, SecurityThrottle, RepListMembership, TextingListType
 from tracker.services import import_workbook, publish_batches, close_batch, start_call, record_outcome
 
 
@@ -21,6 +21,10 @@ def sheet(numbers):
     stream = BytesIO()
     workbook.save(stream)
     return SimpleUploadedFile('phones.xlsx', stream.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+def long_date(day):
+    return f'{day:%a}, {day:%b} {day.day}, {day.year}'
 
 
 @override_settings(ALLOWED_HOSTS=['testserver'], PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
@@ -231,7 +235,9 @@ class BrowserPermissionsTests(TestCase):
             self.assertNotContains(response, 'Not interested')
             self.assertNotContains(response, 'Legacy private sales note')
             self.assertNotContains(response, 'Call outcome recorded')
-        self.assertContains(self.client.get(repeated.get_absolute_url()), 'Phone number uploaded previously')
+        response = self.client.get(repeated.get_absolute_url())
+        self.assertContains(response, 'First uploaded')
+        self.assertContains(response, f'Sent to Emilio Arguello on {long_date(self.today)}.')
         self.assertTrue(self.assignment.attempts.filter(outcome='not_interested').exists())
         self.assertTrue(AuditEvent.objects.filter(action='call.outcome_recorded').exists())
 
@@ -291,7 +297,7 @@ class BrowserPermissionsTests(TestCase):
         self.assertIn(scheduled.pk, [b.pk for b in entries])
         self.assertTrue(all(b.rep_id == self.rep.pk for b in entries))
         self.assertContains(response, 'Organic text - Clean')
-        self.assertContains(response, 'Ringcentral Texting')
+        self.assertContains(response, 'Ringcentral · Clean')  # compact group name on calendar entries
         for entry in entries:
             for phone in entry.assignments.select_related('phone'):
                 self.assertNotContains(response, phone.phone.canonical)
@@ -353,6 +359,119 @@ class BrowserPermissionsTests(TestCase):
         self.assertEqual(set(self.rep.list_memberships.values_list('list_type', flat=True)), {'gfs', 'ringcentral'})
         for action in ('update_memberships', 'reset_password', 'disable'):
             self.assertEqual(self.client.post(reverse('team_detail', args=[self.manager.pk]), {'action': action}).status_code, 403)
+
+    def test_repeat_upload_shows_when_each_number_was_sent(self):
+        sent_today = self.batch.assignments.select_related('phone').get().phone.canonical
+        other_future = next(b for b in self.batches if b.rep_id == self.other.pk and b.scheduled_date > self.today)
+        scheduled = other_future.assignments.select_related('phone').get().phone.canonical
+        draft = import_workbook(sheet(['4165550190']), self.manager, 'Unsent draft', list_type=TextingListType.GFS)
+        repeated = import_workbook(sheet([sent_today, scheduled, '4165550190', '4165550191']), self.manager, 'Repeat check', list_type=TextingListType.GFS)
+        self.client.force_login(self.manager)
+        response = self.client.get(repeated.get_absolute_url())
+        self.assertContains(response, 'These 3 numbers were previously uploaded and flagged. Do you wish to upload them again?', count=2)
+        self.client.post(reverse('upload_previous', args=[repeated.pk]), {'include': 'no'})
+        response = self.client.get(repeated.get_absolute_url())
+        self.assertContains(response, '3 numbers in this file were uploaded before.')
+        uploaded_on = timezone.localtime(self.upload.created_at).date()
+        self.assertContains(response, f'First uploaded {uploaded_on:%b} {uploaded_on.day}, {uploaded_on.year} in “Daily list”.', count=2)
+        self.assertContains(response, f'Sent to Emilio Arguello on {long_date(self.today)}.')
+        self.assertContains(response, f'Scheduled for anthony on {long_date(other_future.scheduled_date)}.')
+        self.assertContains(response, 'in “Unsent draft”. Not sent to a rep yet.')
+        close_batch(self.batch, self.manager)
+        self.assertContains(self.client.get(repeated.get_absolute_url()), f'Sent to Emilio Arguello on {long_date(self.today)} (list cleared).')
+        self.assertNotContains(self.client.get(draft.get_absolute_url()), 'uploaded before')
+
+    def test_previous_numbers_prompt_until_the_manager_answers(self):
+        sent = self.batch.assignments.select_related('phone').get().phone.canonical
+        repeated = import_workbook(sheet([sent, '4165550190']), self.manager, 'Repeat check', list_type=TextingListType.GFS)
+        url = reverse('upload_previous', args=[repeated.pk])
+        self.client.force_login(self.manager)
+        response = self.client.get(repeated.get_absolute_url())
+        self.assertContains(response, '<dialog class="confirm-dialog" data-auto-open')
+        self.assertContains(response, 'This number was previously uploaded and flagged. Do you wish to upload it again?')
+        self.assertNotContains(response, 'data-split-form')
+        self.assertTrue(response.context['needs_previous_decision'])
+        self.client.post(url, {'include': 'maybe'})
+        repeated.refresh_from_db()
+        self.assertIsNone(repeated.include_previous)
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.manager)
+        self.assertEqual(csrf_client.post(url, {'include': 'yes'}).status_code, 403)
+        self.client.force_login(self.rep)
+        self.assertEqual(self.client.post(url, {'include': 'yes'}).status_code, 403)
+        self.client.force_login(self.manager)
+        self.assertRedirects(self.client.post(url, {'include': 'yes'}), repeated.get_absolute_url())
+        response = self.client.get(repeated.get_absolute_url())
+        self.assertNotContains(response, 'data-auto-open')
+        self.assertContains(response, 'data-split-form')
+        self.assertContains(response, '1 previously uploaded number is included in this list.')
+        self.assertContains(response, 'Leave them out instead')
+        self.assertEqual(response.context['assignable_count'], 2)
+        self.client.post(url, {'include': 'no'})
+        response = self.client.get(repeated.get_absolute_url())
+        self.assertContains(response, 'Upload them again instead')
+        self.assertEqual(response.context['assignable_count'], 1)
+
+    def test_assigned_lists_reach_the_rep_account_without_a_shared_link(self):
+        self.client.force_login(self.manager)
+        for url in (self.upload.get_absolute_url(), self.batch.get_absolute_url(), reverse('dashboard')):
+            response = self.client.get(url)
+            self.assertNotContains(response, 'data-copy-link')
+            self.assertNotContains(response, 'Copy batch link')
+        self.assertContains(self.client.get(self.batch.get_absolute_url()), 'This list is in Emilio Arguello’s account')
+        self.client.force_login(self.rep)
+        response = self.client.get(reverse('dashboard'))
+        self.assertEqual([batch.pk for batch in response.context['batches']], [self.batch.pk])
+        self.assertContains(response, self.batch.get_absolute_url())
+        future = self.client.get(reverse('dashboard'), {'week': self.future.scheduled_date.isoformat()})
+        scheduled = [batch.pk for day in future.context['calendar_days'] for batch in day['batches']]
+        self.assertIn(self.future.pk, scheduled)
+
+    def test_manager_calendar_shows_every_reps_lists_for_the_week(self):
+        tomorrow = self.today + timedelta(days=1)
+        yesterday = self.today - timedelta(days=1)
+        RepBatch.objects.filter(upload=self.upload, scheduled_date=tomorrow).update(scheduled_date=yesterday)
+        self.client.force_login(self.manager)
+        for selected, label in ((self.today, 'Available today'), (yesterday, 'Sent')):
+            with self.subTest(selected=selected):
+                response = self.client.get(reverse('dashboard'), {'date': selected.isoformat()})
+                week_start = selected - timedelta(days=selected.weekday())
+                self.assertEqual(response.context['week_start'], week_start)
+                self.assertEqual(response.context['previous_week'], selected - timedelta(days=7))
+                day = next(d for d in response.context['calendar_days'] if d['date'] == selected)
+                self.assertTrue(day['is_selected'])
+                self.assertEqual([(e['upload__label'], e['rep_count'], e['number_count']) for e in day['batches']], [('Daily list', 2, 2)])
+                self.assertEqual(day['batches'][0]['list_type_label'], 'GFS · Donut')
+                self.assertContains(response, self.upload.get_absolute_url())
+                self.assertContains(response, label)
+                for batch_day in response.context['calendar_days']:
+                    for entry in batch_day['batches']:
+                        self.assertGreaterEqual(entry['scheduled_date'], week_start)
+                        self.assertLessEqual(entry['scheduled_date'], week_start + timedelta(days=6))
+        future = import_workbook(sheet(['4165550190']), self.manager, 'Next list', list_type=TextingListType.GFS)
+        publish_batches(future, [tomorrow], [self.rep], self.manager)
+        response = self.client.get(reverse('dashboard'), {'date': tomorrow.isoformat()})
+        day = next(d for d in response.context['calendar_days'] if d['date'] == tomorrow)
+        self.assertEqual([(e['upload__label'], e['rep_count'], e['number_count']) for e in day['batches']], [('Next list', 1, 1)])
+        self.assertContains(response, 'Upcoming')
+        close_batch(self.batch, self.manager)
+        response = self.client.get(reverse('dashboard'))
+        day = next(d for d in response.context['calendar_days'] if d['date'] == self.today)
+        self.assertEqual([(e['rep_count'], e['number_count']) for e in day['batches']], [(1, 1)])
+
+    def test_invalid_manager_date_falls_back_without_server_error(self):
+        self.client.force_login(self.manager)
+        for value in ('not-a-date', '0001-01-01', '9999-12-31'):
+            response = self.client.get(reverse('dashboard'), {'date': value})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.context['selected_date'], self.today)
+
+    def test_texting_groups_show_clean_and_donut_names(self):
+        self.client.force_login(self.manager)
+        response = self.client.get(reverse('upload_new'))
+        self.assertContains(response, 'Ringcentral Texting (Clean)')
+        self.assertContains(response, 'GFS Texting (Donut)')
+        self.assertContains(self.client.get(reverse('team')), 'GFS Texting (Donut)')
 
     def test_invalid_calendar_week_falls_back_without_server_error(self):
         self.client.force_login(self.rep)

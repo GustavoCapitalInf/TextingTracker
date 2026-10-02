@@ -1,0 +1,7 @@
+{{ form.non_field_errors }}
+<div class="template-fields">
+  <div class="field">{{ form.label.label_tag }}{{ form.label }}{{ form.label.errors }}</div>
+  <div class="field">{{ form.list_type.label_tag }}{{ form.list_type }}{{ form.list_type.errors }}</div>
+</div>
+<fieldset class="field"><legend class="field-label">Days</legend><div class="weekday-choices">{% for box in form.weekdays %}{{ box }}{% endfor %}</div>{{ form.weekdays.errors }}</fieldset>
+<fieldset class="field" data-rep-filter><legend class="field-label">Reps</legend><p class="help-text rep-filter-hint" data-rep-hint hidden>Choose a texting list to see its reps.</p><div class="rep-choices">{% for box in form.reps %}<div>{{ box }}</div>{% empty %}<p class="quiet small">No active reps yet. <a href="{% url 'team' %}">Add reps in Accounts</a>.</p>{% endfor %}</div><p class="help-text">Only reps on the chosen texting list are shown.</p>{{ form.reps.errors }}</fieldset>

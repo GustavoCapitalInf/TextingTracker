@@ -26,7 +26,7 @@ class AccountManagementTests(TestCase):
 
     def test_created_credentials_are_unique_hashed_and_not_audited(self):
         first, first_password = create_rep(self.manager, "Blake", "Fiorito", "blake.fiorito", [TextingListType.GFS])
-        second, second_password = create_rep(self.manager, "Emilio", "Arguello", "emilio.arguello", TextingListType.values)
+        second, second_password = create_rep(self.manager, "Emilio", "Arguello", "emilio.arguello", [TextingListType.GFS, TextingListType.RINGCENTRAL])
         self.assertNotEqual(first_password, second_password)
         for rep, password in [(first, first_password), (second, second_password)]:
             self.assertGreaterEqual(len(password), 20)
@@ -36,7 +36,7 @@ class AccountManagementTests(TestCase):
             self.assertFalse(rep.is_staff)
             self.assertFalse(rep.is_superuser)
             self.assertNotIn(password, json.dumps(list(AuditEvent.objects.values("action", "details"))))
-        self.assertEqual(set(second.list_memberships.values_list("list_type", flat=True)), set(TextingListType.values))
+        self.assertEqual(set(second.list_memberships.values_list("list_type", flat=True)), set([TextingListType.GFS, TextingListType.RINGCENTRAL]))
         self.assertEqual(AuditEvent.objects.filter(action="account.rep_created").count(), 2)
 
     def test_nonmanagers_cannot_create_reset_or_assign_memberships(self):
@@ -160,7 +160,7 @@ class ProvisioningTests(TestCase):
         self.assertEqual(AuditEvent.objects.count(), event_count)
         existing.refresh_from_db()
         self.assertFalse(existing.is_active)
-        self.assertEqual(set(existing.list_memberships.values_list("list_type", flat=True)), set(TextingListType.values))
+        self.assertEqual(set(existing.list_memberships.values_list("list_type", flat=True)), set([TextingListType.GFS, TextingListType.RINGCENTRAL]))
         self.assertTrue(User.objects.filter(pk=unrelated.pk).exists())
         self.assertNotIn("Username: blake.fiorito", self.output.read_text(encoding="utf-8"))
 

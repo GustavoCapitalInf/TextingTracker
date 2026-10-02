@@ -6,7 +6,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import PermissionDenied, ValidationError
 
-from .models import RepListMembership, TextingListType
+from .models import RepListMembership
+from . import texting_lists
 from .services import _phone_transaction, _require_manager, write_audit
 
 
@@ -17,7 +18,7 @@ def validate_list_types(list_types):
         values = set(list_types)
     except (TypeError, ValueError):
         raise ValidationError("Choose at least one valid texting list.")
-    if not values or not values.issubset(set(TextingListType.values)):
+    if not values or not values.issubset(texting_lists.active_keys()):
         raise ValidationError("Choose at least one valid texting list.")
     return sorted(values)
 
@@ -41,7 +42,8 @@ def _generated_password(user):
 
 def _replace_memberships(rep, list_types):
     current = set(rep.list_memberships.values_list("list_type", flat=True))
-    desired = set(list_types)
+    # Hidden lists can't be picked, so editing a rep never drops those memberships.
+    desired = set(list_types) | (current - texting_lists.active_keys())
     if current == desired:
         return None
     rep.list_memberships.exclude(list_type__in=desired).delete()

@@ -10,23 +10,27 @@ from datetime import date, datetime
 from io import BytesIO
 import math
 import re
+import unicodedata
 from zipfile import BadZipFile, ZipFile
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import connection, transaction
+from django.db.models import Q
 from django.utils import timezone
 from openpyxl import load_workbook
 import phonenumbers
 
 from .models import (
     Assignment, AuditEvent, CallAttempt, ImportBatch, ImportRow, PhoneNumber, RepBatch,
-    TextingListType,
 )
+from . import texting_lists
 
 
 _PHONE_WRITE_LOCK = 73621001
+# Dash look-alikes that word processors and web pages put into copied numbers.
+_DASHES = str.maketrans({character: "-" for character in "\u2010\u2011\u2012\u2013\u2014\u2015\u2212\ufe58\ufe63"})
 _HEADERS = {
     "phone", "phones", "phonenumber", "phonenumbers", "telephone", "telephonenumber",
     "mobile", "mobilenumber", "cell", "cellphone", "number", "contactnumber",
@@ -86,6 +90,10 @@ def normalize_phone(raw):
     value = _raw_text(raw)
     if not value or len(value) > 120:
         raise ValidationError("Enter a complete US or Canadian phone number.")
+    # Copy-paste artifacts: invisible format marks (Outlook/Teams direction marks, zero-width
+    # spaces, BOM), full-width characters, fancy dashes, tabs and odd spaces.
+    value = "".join(ch for ch in value if unicodedata.category(ch) != "Cf")
+    value = re.sub(r"\s+", " ", unicodedata.normalize("NFKC", value).translate(_DASHES)).strip()
     if not re.fullmatch(r"\+?[0-9\s().\-]+", value):
         raise ValidationError("Use digits with an optional +1, spaces, parentheses, or dashes.")
     digits = re.sub(r"\D", "", value)
@@ -145,7 +153,10 @@ def _read_workbook(file):
             source_column = None
             first_populated_row = True
             for row_number, cells in enumerate(sheet.iter_rows(), start=1):
-                if row_number > max_rows + 1:
+                # Styled but empty rows don't count toward max_rows (checked on parsed rows
+                # below); the uncompressed-size limit above bounds this loop, and no real
+                # worksheet has more rows than Excel allows.
+                if row_number > 1_048_576:
                     raise ValidationError(f"A workbook can contain at most {max_rows:,} phone rows.")
                 if any(cell.data_type == "f" for cell in cells):
                     raise ValidationError("Formulas are not allowed. Paste the phone numbers as values.")
@@ -163,7 +174,8 @@ def _read_workbook(file):
                 value = _raw_text(cell.value)
                 if first_populated_row:
                     first_populated_row = False
-                    if re.sub(r"[^a-z]", "", value.lower()) in _HEADERS:
+                    # A header is any first row without digits, or a known name like "Phone 1".
+                    if not any(character.isdigit() for character in value) or re.sub(r"[^a-z]", "", value.lower()) in _HEADERS:
                         continue
                 try:
                     canonical = normalize_phone(cell.value)
@@ -191,15 +203,17 @@ def _read_workbook(file):
             workbook.close()
 
 
-def _validate_list_type(list_type):
-    if not isinstance(list_type, str) or list_type not in TextingListType.values:
-        raise ValidationError("Choose GFS Texting or Ringcentral Texting for this upload.")
+def _validate_list_type(list_type, *, active_only=True):
+    """A texting list key that exists (and, for new work, is not hidden)."""
+    keys = texting_lists.active_keys() if active_only else set(texting_lists.all_lists())
+    if not isinstance(list_type, str) or list_type not in keys:
+        raise ValidationError("Choose one of your texting lists for this upload.")
     return list_type
 
 
 def eligible_reps(list_type):
     """Current active salesperson accounts belonging to the given texting list."""
-    list_type = _validate_list_type(list_type)
+    list_type = _validate_list_type(list_type, active_only=False)
     return get_user_model().objects.filter(
         is_active=True, is_staff=False, is_superuser=False,
         list_memberships__list_type=list_type,
@@ -291,8 +305,51 @@ def classify_upload(upload, list_type, actor):
         return current
 
 
+def reusable_previous_rows(upload):
+    """Previously uploaded rows the manager may choose to assign again.
+
+    Legacy do-not-contact numbers are never offered for reuse.
+    """
+    return upload.rows.filter(classification=ImportRow.Classification.PREVIOUS).exclude(
+        phone__status=PhoneNumber.Status.BLOCKED,
+    )
+
+
+def assignable_rows(upload):
+    """Rows a split assigns: new numbers, plus previously uploaded ones if the manager opted in."""
+    eligible = Q(classification=ImportRow.Classification.READY, phone__status=PhoneNumber.Status.NEW)
+    if upload.include_previous:
+        eligible |= Q(classification=ImportRow.Classification.PREVIOUS) & ~Q(phone__status=PhoneNumber.Status.BLOCKED)
+    return upload.rows.filter(eligible)
+
+
+def _require_previous_decision(upload):
+    if upload.include_previous is None and reusable_previous_rows(upload).exists():
+        raise ValidationError("Choose whether to upload the previously uploaded numbers again before assigning this list.")
+
+
+def decide_previous_numbers(upload, include, actor):
+    """Record whether a draft's previously uploaded numbers join its split."""
+    _require_manager(actor)
+    if not isinstance(include, bool):
+        raise ValidationError("Choose Yes or No.")
+    with _phone_transaction():
+        current = ImportBatch.objects.select_for_update().get(pk=upload.pk)
+        if current.status != ImportBatch.Status.DRAFT or current.batches.exists():
+            raise ValidationError("Only an unassigned draft upload can change which numbers it includes.")
+        if current.include_previous is include:
+            return current
+        current.include_previous = include
+        current.save(update_fields=["include_previous"])
+        write_audit(actor, "upload.previous_numbers_decided", current, {
+            "include": include, "previous_count": reusable_previous_rows(current).count(),
+        })
+        return current
+
+
 def _clean_split(dates, reps, *, list_type, enforce_future=True):
-    list_type = _validate_list_type(list_type)
+    # Hiding a texting list stops new uploads; drafts already on it can still be split.
+    list_type = _validate_list_type(list_type, active_only=False)
     try:
         clean_dates = [date.fromisoformat(item) if isinstance(item, str) else item for item in dates]
     except (ValueError, TypeError) as error:
@@ -316,7 +373,7 @@ def _clean_split(dates, reps, *, list_type, enforce_future=True):
         raise ValidationError("Each representative can be selected only once.")
     users = eligible_reps(list_type).filter(pk__in=rep_ids).in_bulk()
     if len(users) != len(rep_ids):
-        label = TextingListType(list_type).label
+        label = texting_lists.label(list_type)
         raise ValidationError(f"Every selected representative must be active and belong to {label}.")
     # Stable account ordering keeps preview, retries, and allocation identical.
     clean_reps = sorted(users.values(), key=lambda rep: (rep.username.casefold(), rep.pk))
@@ -324,6 +381,7 @@ def _clean_split(dates, reps, *, list_type, enforce_future=True):
 
 
 def _allocation(count, dates, reps):
+    """Day-first, then rep, counts; entries with no numbers are left out so nobody gets an empty list."""
     per_day, extra_days = divmod(count, len(dates))
     entries = []
     rotation = 0
@@ -337,7 +395,7 @@ def _allocation(count, dates, reps):
                 "count": per_rep + (rep_index in extra_indexes),
             })
         rotation = (rotation + extra_reps) % len(reps)
-    return entries
+    return [entry for entry in entries if entry["count"]]
 
 
 def preview_split(upload, dates, reps):
@@ -346,11 +404,10 @@ def preview_split(upload, dates, reps):
         dates, reps = _clean_split(dates, reps, list_type=current.list_type)
         if current.status != ImportBatch.Status.DRAFT:
             raise ValidationError("Only a draft upload can be split into batches.")
-        count = current.rows.filter(
-            classification=ImportRow.Classification.READY, phone__status=PhoneNumber.Status.NEW,
-        ).count()
+        _require_previous_decision(current)
+        count = assignable_rows(current).count()
         if not count:
-            raise ValidationError("There are no new, eligible numbers to assign in this upload.")
+            raise ValidationError("There are no eligible numbers to assign in this upload.")
         return _allocation(count, dates, reps)
 
 
@@ -367,15 +424,25 @@ def publish_batches(upload, dates, reps, actor):
         if current.status == ImportBatch.Status.PUBLISHED:
             batches = list(current.batches.select_related("rep", "upload"))
             existing_grid = {(batch.scheduled_date, batch.rep_id) for batch in batches}
-            requested_grid = {(day, rep.pk) for day in dates for rep in reps}
-            if existing_grid != requested_grid:
+            # Replaying the deterministic split reproduces which lists were skipped as empty.
+            assigned = Assignment.objects.filter(batch__upload=current).count()
+            requested_grid = {(entry["date"], entry["rep"].pk) for entry in _allocation(assigned, dates, reps)}
+            # Uploads published before empty lists were skipped have the full grid.
+            full_grid = {(day, rep.pk) for day in dates for rep in reps}
+            if existing_grid not in (requested_grid, full_grid):
                 raise ValidationError("This upload has already been assigned with different split settings.")
             return batches
-        rows = list(current.rows.select_related("phone").filter(
-            classification=ImportRow.Classification.READY, phone__status=PhoneNumber.Status.NEW,
-        ))
+        _require_previous_decision(current)
+        rows = list(assignable_rows(current).select_related("phone"))
         if not rows:
-            raise ValidationError("There are no new, eligible numbers to assign in this upload.")
+            raise ValidationError("There are no eligible numbers to assign in this upload.")
+        # A number has one live assignment; reusing it retires the earlier one, keeping its history.
+        reused_ids = [row.phone_id for row in rows if row.classification == ImportRow.Classification.PREVIOUS]
+        for offset in range(0, len(reused_ids), 500):
+            Assignment.objects.filter(
+                phone_id__in=reused_ids[offset:offset + 500],
+                status__in=[Assignment.Status.PENDING, Assignment.Status.IN_PROGRESS],
+            ).update(status=Assignment.Status.REASSIGNED)
         allocation = _allocation(len(rows), dates, reps)
         batches = []
         assignments = []
@@ -398,7 +465,7 @@ def publish_batches(upload, dates, reps, actor):
         write_audit(actor, "upload.published", current, {
             "dates": [day.isoformat() for day in dates], "rep_ids": [rep.pk for rep in reps],
             "batch_count": len(batches), "assigned_count": len(assignments),
-            "list_type": current.list_type,
+            "reused_count": len(reused_ids), "list_type": current.list_type,
         })
         return batches
 

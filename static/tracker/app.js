@@ -2,36 +2,35 @@
 (() => {
   "use strict";
 
-  // Copy batch URLs only. Phone data is never copied or stored by this script.
-  document.querySelectorAll("[data-copy-link]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const label = [...button.childNodes].map(node => node.cloneNode(true));
-      const restoreLabel = () => button.replaceChildren(...label.map(node => node.cloneNode(true)));
-      const link = new URL(button.dataset.copyLink, window.location.origin).href;
-      try {
-        if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
-        await navigator.clipboard.writeText(link);
-        button.textContent = "Link copied ✓";
-        button.dataset.state = "success";
-        setTimeout(() => { restoreLabel(); delete button.dataset.state; }, 2500);
-      } catch {
-        // Internal HTTP previews may not expose the Clipboard API.
-        const field = document.createElement("input");
-        field.value = link;
-        field.readOnly = true;
-        field.setAttribute("aria-label", "Batch link. Select and copy this URL.");
-        button.after(field);
-        field.focus();
-        field.select();
-        button.textContent = "Copy the link below";
-        button.dataset.state = "error";
-        field.addEventListener("blur", () => {
-          field.remove();
-          restoreLabel();
-          delete button.dataset.state;
-        }, { once: true });
+  // Questions that need an answer before work continues open as soon as the
+  // page loads. The same choices stay on the page if the dialog is dismissed.
+  document.querySelectorAll("dialog[data-auto-open]").forEach((dialog) => {
+    if (typeof dialog.showModal === "function" && !dialog.open) dialog.showModal();
+  });
+
+  // Template lists: list only the reps who belong to the chosen texting group.
+  // Reps hidden by a group change are unticked; the server checks membership too.
+  document.querySelectorAll("[data-rep-filter]").forEach((fieldset) => {
+    const select = fieldset.closest("form")?.querySelector('select[name$="list_type"]');
+    const hint = fieldset.querySelector("[data-rep-hint]");
+    const options = [...fieldset.querySelectorAll("input[data-groups]")];
+    if (!select) return;
+    const update = () => {
+      const group = select.value;
+      let shown = 0;
+      options.forEach((input) => {
+        const match = Boolean(group) && input.dataset.groups.split(" ").includes(group);
+        (input.closest(".rep-choices > div") || input.parentElement).hidden = !match;
+        if (match) shown += 1;
+        else input.checked = false;
+      });
+      if (hint) {
+        hint.textContent = group ? "No active reps are on this texting list yet. Add them under Texting lists." : "Choose a texting list to see its reps.";
+        hint.hidden = Boolean(group) && shown > 0;
       }
-    });
+    };
+    select.addEventListener("change", update);
+    update();
   });
 
   document.querySelectorAll("[data-dropzone]").forEach((zone) => {
@@ -88,7 +87,40 @@
     });
   });
 
+  // Appearance: apply the choice at once and save it in the background, so the page
+  // (and anything typed into it) stays put. Without script the form posts and the
+  // server redirects back. If saving fails, fall back to that same plain post.
+  document.querySelectorAll("form[data-theme-switch]").forEach((form) => {
+    const apply = (theme) => {
+      document.documentElement.dataset.theme = theme;
+      document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", theme === "system" ? "dark light" : theme);
+      document.querySelectorAll('form[data-theme-switch] button[name="theme"]').forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.value === theme));
+      });
+    };
+    form.addEventListener("submit", async (event) => {
+      const theme = event.submitter?.value;
+      if (!theme) return;
+      event.preventDefault();
+      apply(theme);
+      const body = new FormData(form);
+      body.set("theme", theme);
+      try {
+        const response = await fetch(form.action, {
+          method: "POST", body, credentials: "same-origin", cache: "no-store",
+          headers: { "Accept": "application/json" },
+        });
+        if (!response.ok) throw new Error("Not saved");
+      } catch {
+        const field = Object.assign(document.createElement("input"), { type: "hidden", name: "theme", value: theme });
+        form.append(field);
+        HTMLFormElement.prototype.submit.call(form);
+      }
+    });
+  });
+
   document.querySelectorAll("form").forEach((form) => {
+    if (form.method === "dialog" || form.hasAttribute("data-theme-switch")) return;
     form.addEventListener("submit", (event) => {
       if (form.dataset.submitting === "true") { event.preventDefault(); return; }
       if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) {
@@ -114,6 +146,8 @@
   const cover = () => {
     if (!sensitive || !overlay || overlay.hidden === false) return;
     previousFocus = document.activeElement;
+    // A modal dialog would sit above the cover; its choices remain on the page.
+    document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
     document.body.classList.add("privacy-active");
     overlay.hidden = false;
     if (shell) shell.inert = true;

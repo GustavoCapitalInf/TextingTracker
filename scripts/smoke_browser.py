@@ -73,9 +73,9 @@ def run(base_url, credentials_path):
         upload_url = manager.url
         cards = manager.locator('.assignment-row')
         first_rep_name = cards.nth(0).locator('h3').inner_text().split()[0].lower()
-        own_path = cards.nth(0).locator('[data-copy-link]').get_attribute('data-copy-link')
-        other_path = cards.nth(1).locator('[data-copy-link]').get_attribute('data-copy-link')
-        future_path = cards.nth(2).locator('[data-copy-link]').get_attribute('data-copy-link')
+        own_path = cards.nth(0).locator('a[href^="/b/"]').get_attribute('href')
+        other_path = cards.nth(1).locator('a[href^="/b/"]').get_attribute('href')
+        future_path = cards.nth(2).locator('a[href^="/b/"]').get_attribute('href')
         account = next(rep for rep in credentials['reps'] if rep['username'] == 'demo.' + first_rep_name)
 
         rep_context = browser.new_context(viewport={'width': 1280, 'height': 950})
@@ -84,6 +84,10 @@ def run(base_url, credentials_path):
         rep.goto(base_url + own_path)
         sign_in(rep, account)
         assert rep.url == base_url + own_path, 'Batch shortcut did not survive sign-in.'
+        # Assigned lists appear in the rep's own account without a shared link.
+        rep.goto(base_url + '/')
+        expect(rep.locator(f'#assigned-batches a[href="{own_path}"]')).to_be_visible()
+        rep.goto(base_url + own_path)
         expect(rep.locator('.lead-number-table tbody tr')).to_have_count(5)
         expect(rep.locator('.phone-number')).to_have_count(5)
         expect(rep.locator('.number-data form')).to_have_count(0)

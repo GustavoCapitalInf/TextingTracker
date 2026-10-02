@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Templates{% endblock %}
+{% block section_name %}Templates{% endblock %}
+{% block content %}
+<header class="page-head"><div><h1>Templates</h1><p>Save your usual week once: which lists go out on which days, and to which reps. When a template is turned on, those lists appear on the Lead lists calendar as reminders. Click <strong>Upload</strong> on a reminder and its days and reps are already filled in.</p></div></header>
+<div class="team-layout">
+  <section>
+    <div class="section-head"><h2>Your templates</h2></div>
+    {% if templates %}<div class="panel table-wrap"><table><thead><tr><th scope="col">Template</th><th scope="col">Lists each week</th><th scope="col">Reminders</th></tr></thead><tbody>{% for template in templates %}<tr><td><a class="table-primary" href="{{ template.get_absolute_url }}">{{ template.name }}</a></td><td>{% for slot in template.lists.all %}<span class="template-summary">{{ slot.weekday_label }} · {{ slot.label }}</span>{% empty %}<span class="quiet">No lists yet</span>{% endfor %}</td><td><span class="badge {% if template.is_active %}badge-active{% endif %}">{% if template.is_active %}On{% else %}Off{% endif %}</span></td></tr>{% endfor %}</tbody></table></div>
+    {% else %}<div class="empty-state"><h2>No templates yet</h2><p>Let the app build one from the lists you sent in the last 4 weeks, or make one yourself.</p></div>{% endif %}
+  </section>
+  <div class="form-stack">
+    <section class="panel"><div class="panel-head"><h2>Learn from past weeks</h2><p>The app looks at the lists you sent in the last 4 weeks and builds a template from them, with each list’s days, reps, and how often you sent it. It stays off until you check it and turn it on.</p></div><form method="post" class="panel-body">{% csrf_token %}<input type="hidden" name="action" value="suggest"><button class="button button-primary" type="submit">Draft from past weeks</button></form></section>
+    <section class="panel"><div class="panel-head"><h2>Start from scratch</h2><p>Give it a name, then add the lists you send each week.</p></div><form method="post" class="panel-body form-stack">{% csrf_token %}<input type="hidden" name="action" value="create">{{ form.non_field_errors }}<div class="field">{{ form.name.label_tag }}{{ form.name }}{{ form.name.errors }}</div><div><button class="button" type="submit">Create template</button></div></form></section>
+  </div>
+</div>
+{% endblock %}

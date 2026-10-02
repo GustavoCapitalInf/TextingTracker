@@ -33,6 +33,7 @@ INSTALLED_APPS = [
 ]
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'tracker.texting_lists.TextingListMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -115,7 +116,9 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 6 * 1024 * 1024
 IMPORT_MAX_BYTES = 5 * 1024 * 1024
 IMPORT_MAX_ROWS = 10000
 IMPORT_MAX_UNCOMPRESSED_BYTES = 32 * 1024 * 1024
-LOGIN_MAX_ATTEMPTS = 5
+LOGIN_MAX_ATTEMPTS = 5  # per username, from one address
+LOGIN_ACCOUNT_MAX_ATTEMPTS = 25  # per username, from all addresses
+LOGIN_ADDRESS_MAX_ATTEMPTS = 50  # per address, across usernames
 LOGIN_WINDOW_SECONDS = 15 * 60
 LOGGING = {'version': 1, 'disable_existing_loggers': False,
            'handlers': {'console': {'class': 'logging.StreamHandler'}},

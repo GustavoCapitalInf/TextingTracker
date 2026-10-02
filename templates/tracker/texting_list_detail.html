@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}{{ item.name }} · Texting list{% endblock %}
+{% block section_name %}Texting list{% endblock %}
+{% block content %}
+<a class="breadcrumb" href="{% url 'texting_lists_index' %}">← Texting lists</a>
+<header class="page-head"><div><h1>{{ item.name }}</h1><p>{% if item.nickname %}{{ item.nickname }} · {% endif %}{{ member_count }} rep{{ member_count|pluralize }} · {{ usage.uploads }} upload{{ usage.uploads|pluralize }}{% if usage.templates %} · used in {{ usage.templates }} template list{{ usage.templates|pluralize }}{% endif %}</p></div><span class="badge {% if item.is_active %}badge-active{% endif %}">{% if item.is_active %}In use{% else %}Hidden{% endif %}</span></header>
+<div class="account-settings-layout">
+  <section class="panel"><div class="panel-head"><h2>Name</h2><p>Renaming also updates the name on past lists and history.</p></div>
+    <form method="post" class="panel-body form-stack">{% csrf_token %}<input type="hidden" name="action" value="update">{{ settings_form.non_field_errors }}
+      <div class="field">{{ settings_form.name.label_tag }}{{ settings_form.name }}{{ settings_form.name.errors }}</div>
+      <div class="field">{{ settings_form.nickname.label_tag }}{{ settings_form.nickname }}<div class="help-text">{{ settings_form.nickname.help_text }}</div>{{ settings_form.nickname.errors }}</div>
+      <label class="checkbox-line" for="{{ settings_form.is_active.id_for_label }}">{{ settings_form.is_active }} {{ settings_form.is_active.label }}</label>
+      <p class="help-text">Hidden lists can’t be picked for new uploads or templates. Lists already sent keep working.</p>
+      <div><button class="button button-primary" type="submit">Save</button></div>
+    </form>
+  </section>
+  <section class="panel"><div class="panel-head"><h2>Reps on this list</h2><p>Only these reps can receive this list’s uploads. Removing a rep takes away their access to this list right away.</p></div>
+    <form method="post" class="panel-body form-stack">{% csrf_token %}<input type="hidden" name="action" value="members">{{ reps_form.non_field_errors }}
+      <div class="rep-choices">{% for box in reps_form.reps %}<div>{{ box }}</div>{% empty %}<p class="quiet small">No active reps yet. <a href="{% url 'team' %}">Add reps in Accounts</a>.</p>{% endfor %}</div>{{ reps_form.reps.errors }}
+      <div><button class="button" type="submit">Save reps</button></div>
+    </form>
+  </section>
+</div>
+<div class="danger-zone">{% if can_delete %}<form method="post" data-confirm="Delete the “{{ item.name }}” texting list? Its reps stay in their accounts.">{% csrf_token %}<input type="hidden" name="action" value="delete"><button class="button button-danger" type="submit">Delete texting list</button></form>{% else %}<p class="help-text">This list has uploads or templates, so it can’t be deleted without losing history. Untick “Show this list for new uploads and templates” above to hide it instead.</p>{% endif %}</div>
+{% endblock %}

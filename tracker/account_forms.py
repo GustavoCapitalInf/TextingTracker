@@ -4,12 +4,12 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UsernameField
 
-from .models import TextingListType
+from . import texting_lists
 
 
 class RepMembershipForm(forms.Form):
     list_types = forms.MultipleChoiceField(
-        label="Texting lists", choices=TextingListType.choices,
+        label="Texting lists", choices=texting_lists.active_choices,
         widget=forms.CheckboxSelectMultiple,
         error_messages={"required": "Choose at least one texting list."},
     )
@@ -17,6 +17,7 @@ class RepMembershipForm(forms.Form):
     def __init__(self, *args, rep=None, **kwargs):
         super().__init__(*args, **kwargs)
         if rep is not None and not self.is_bound:
+            # Only lists that can still be picked are shown; hidden-list memberships are kept on save.
             self.fields["list_types"].initial = list(rep.list_memberships.values_list("list_type", flat=True))
 
 

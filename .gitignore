@@ -21,3 +21,6 @@ htmlcov/
 Thumbs.db
 deploy/generated/
 artifacts/
+
+# Generated code map for the AI assistant (graphify); rebuild locally
+graphify-out/

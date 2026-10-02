@@ -1,9 +1,10 @@
 <article class="assignment-row">
   <div class="assignment-main">
-    <div class="assignment-rep"><span class="rep-avatar" aria-hidden="true">{{ batch.rep.first_name|default:batch.rep.username|slice:':1'|upper }}</span><div><h3>{{ batch.rep.get_full_name|default:batch.rep.username }}</h3><p>{{ batch.upload.label }}</p><p class="list-type-label">{{ batch.upload.get_list_type_display|default:'Not selected' }}</p></div></div>
+    {% if is_manager %}<div class="assignment-rep"><span class="rep-avatar" aria-hidden="true">{{ batch.rep.first_name|default:batch.rep.username|slice:':1'|upper }}{{ batch.rep.last_name|slice:':1'|upper }}</span><div><h3>{{ batch.rep.get_full_name|default:batch.rep.username }}</h3><p>{{ batch.upload.label }}</p><p class="list-type-label">{{ batch.upload.list_type_label|default:'Not selected' }}</p></div></div>
+    {% else %}<div class="assignment-rep"><span class="list-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="M8 6.5h11M8 12h11M8 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/></svg></span><div><h3>{{ batch.upload.label }}</h3><p class="list-type-label">{{ batch.upload.list_type_label|default:'Not selected' }}</p></div></div>{% endif %}
     <span class="assignment-date">{{ batch.scheduled_date|date:'D, M j' }}</span>
     <div class="assignment-totals"><strong>{{ batch.total_count|default:0 }}</strong><span>numbers</span></div>
     <a class="button" href="{% url 'batch_detail' batch.id %}">Open list <span aria-hidden="true">→</span></a>
   </div>
-  {% if is_manager %}<div class="assignment-footer"><span class="quiet">{% if batch.status == 'closed' %}Cleared · history retained{% else %}Only this rep can access their list{% endif %}</span><button class="button button-quiet" type="button" data-copy-link="{% url 'batch_detail' batch.id %}" aria-label="Copy batch link for {{ batch.rep.get_full_name|default:batch.rep.username }}"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg>Copy batch link</button></div>{% endif %}
+  {% if is_manager %}<div class="assignment-footer"><span class="quiet">{% if batch.status == 'closed' %}Cleared · history retained{% else %}In {{ batch.rep.first_name|default:batch.rep.username }}’s account for {{ batch.scheduled_date|date:'D, M j' }}{% endif %}</span></div>{% endif %}
 </article>

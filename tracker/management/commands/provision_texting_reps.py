@@ -10,6 +10,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from tracker.accounts import create_rep, update_rep_memberships
 from tracker.models import TextingListType
+from tracker import texting_lists
 from tracker.services import _phone_transaction, _require_manager
 
 
@@ -127,12 +128,13 @@ class Command(BaseCommand):
                         created.append((rep, list_types, password))
                     else:
                         previous = set(rep.list_memberships.values_list("list_type", flat=True))
-                        update_rep_memberships(actor, rep, previous | set(list_types))
+                        # Hidden-list memberships are kept by update_rep_memberships itself.
+                        update_rep_memberships(actor, rep, (previous & texting_lists.active_keys()) | set(list_types))
                         existing_count += 1
 
                 descriptor = _open_private_credentials(output)
                 created_file = True
-                labels = dict(TextingListType.choices)
+                labels = {key: texting_lists.label(key) for key in (TextingListType.GFS, TextingListType.RINGCENTRAL)}
                 with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
                     handle.write("PhoneTracker — initial representative credentials\n")
                     handle.write("Private: share each account only with its assigned representative.\n")

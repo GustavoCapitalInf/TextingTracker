@@ -1,5 +1,23 @@
 [
   {
+    "date": "2026-10-02",
+    "scope": "app",
+    "macrostructure": "Sidebar app shell, sticky top bar, card-based pages, tile calendar (unchanged)",
+    "theme": "Dark console plus a cool white/gray light appearance and Auto; near-black pill primary in light",
+    "enrichment": "none",
+    "brief": "Add a light theme alongside dark; it must not be cream",
+    "design_system": "design.md"
+  },
+  {
+    "date": "2026-10-01",
+    "scope": "app",
+    "macrostructure": "Sidebar app shell, sticky top bar, card-based pages, tile calendar",
+    "theme": "Dark console: charcoal surfaces, hairline borders, white pill primary, semantic green/amber/red",
+    "enrichment": "none",
+    "brief": "Redesign inspired by ObsidianUI, Arc UI, SpaceUI, Bencho, Agent Builder integrations and Dribbble UI inspiration",
+    "design_system": "design.md"
+  },
+  {
     "date": "2026-10-01",
     "scope": "app",
     "macrostructure": "Plain header, forms and tables",

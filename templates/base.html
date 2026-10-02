@@ -1,48 +1,71 @@
 {% load static %}
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="{{ theme|default:'dark' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="same-origin">
+  <meta name="color-scheme" content="{{ color_scheme|default:'dark' }}">
   <title>{% block title %}PhoneTracker{% endblock %} · Capital Infusion</title>
-  <link rel="icon" href="{% static 'tracker/favicon.svg' %}?v=plain-final" type="image/svg+xml">
-  <link rel="stylesheet" href="{% static 'tracker/app.css' %}?v=plain-final">
-  <link rel="stylesheet" href="{% static 'tracker/workspace.css' %}?v=plain-final">
-  <link rel="stylesheet" href="{% static 'tracker/pages.css' %}?v=groups-v1">
+  <link rel="icon" href="{% static 'tracker/favicon.svg' %}?v=console-1" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'tracker/app.css' %}?v=themes-1">
   {% block extra_css %}{% endblock %}
-  <script src="{% static 'tracker/app.js' %}" defer></script>
+  <script src="{% static 'tracker/app.js' %}?v=themes-1" defer></script>
 </head>
 <body>
 <a href="#main-content" class="skip-link">Skip to content</a>
 {% block shell %}
-<div class="app-shell plain-shell">
+{% with url_name=request.resolver_match.url_name %}
+<div class="app-shell">
+  <aside class="sidebar" aria-label="Workspace">
+    <a class="brand" href="{% url 'dashboard' %}">
+      <span class="brand-mark" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><rect x="6" y="2.75" width="12" height="18.5" rx="3"/><path d="M10.25 17.75h3.5"/></svg></span>
+      <span class="brand-text"><strong>Capital Infusion</strong><span>PhoneTracker</span></span>
+    </a>
+    {% if user.is_authenticated %}
+    <nav class="side-nav" aria-label="Main navigation">
+      <p class="nav-label">{% if is_manager %}Workspace{% else %}Your work{% endif %}</p>
+      <a class="nav-item" href="{% url 'dashboard' %}" {% if url_name == 'dashboard' or url_name == 'batch_detail' %}aria-current="page"{% endif %}>
+        {% if is_manager %}<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="16" rx="3"/><path d="M3.5 9.5h17M8 2.75v3.5M16 2.75v3.5"/></svg><span>Lead lists</span>
+        {% else %}<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h2.75l1.5 4.25-2.25 1.5a11.5 11.5 0 0 0 6.25 6.25l1.5-2.25 4.25 1.5v2.75a2 2 0 0 1-2 2A16.5 16.5 0 0 1 4.5 5.5a2 2 0 0 1 2-2Z"/></svg><span>Your leads</span>{% endif %}
+      </a>
+      {% if is_manager %}
+      <a class="nav-item" href="{% url 'upload_new' %}" {% if url_name == 'upload_new' or url_name == 'upload_detail' or url_name == 'upload_publish' %}aria-current="page"{% endif %}><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 14.5v3.25A2.75 2.75 0 0 0 6.75 20.5h10.5A2.75 2.75 0 0 0 20 17.75V14.5"/></svg><span>Upload list</span></a>
+      <a class="nav-item" href="{% url 'templates_index' %}" {% if url_name == 'templates_index' or url_name == 'template_detail' %}aria-current="page"{% endif %}><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.25 8.5 4.5L12 12.25l-8.5-4.5L12 3.25Z"/><path d="m3.5 12 8.5 4.5 8.5-4.5"/><path d="m3.5 16.25 8.5 4.5 8.5-4.5"/></svg><span>Templates</span></a>
+      <a class="nav-item" href="{% url 'texting_lists_index' %}" {% if url_name == 'texting_lists_index' or url_name == 'texting_list_detail' %}aria-current="page"{% endif %}><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.25V5a1.5 1.5 0 0 1 1.5-1.5h7.25a1.5 1.5 0 0 1 1.06.44l7.75 7.75a1.5 1.5 0 0 1 0 2.12l-7.25 7.25a1.5 1.5 0 0 1-2.12 0l-7.75-7.75a1.5 1.5 0 0 1-.44-1.06Z"/><circle cx="8.25" cy="8.25" r="1.5"/></svg><span>Texting lists</span></a>
+      <a class="nav-item" href="{% url 'team' %}" {% if url_name == 'team' or url_name == 'team_detail' %}aria-current="page"{% endif %}><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.75 20a6.25 6.25 0 0 1 12.5 0"/><path d="M15.75 4.75a3.5 3.5 0 0 1 0 6.5M18 14.25A6.25 6.25 0 0 1 21.25 20"/></svg><span>Accounts</span></a>
+      <a class="nav-item" href="{% url 'audit_log' %}" {% if url_name == 'audit_log' %}aria-current="page"{% endif %}><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>History</span></a>
+      {% endif %}
+    </nav>
+    <div class="sidebar-foot">
+      {% include 'tracker/partials/theme_switch.html' %}
+      <div class="user-card">
+        <span class="avatar" aria-hidden="true">{{ user_initials }}</span>
+        <span class="user-text"><strong>{{ user.get_full_name|default:user.username }}</strong><span>{% if is_manager %}Administrator{% else %}Sales rep{% endif %}</span></span>
+      </div>
+      <div class="user-actions">
+        {% if request.user.is_staff %}<a href="{% url 'password_change' %}" {% if url_name == 'password_change' %}aria-current="page"{% endif %}>Account</a>{% endif %}
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4.5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3M10 16.5 14.5 12 10 7.5M14.5 12H4"/></svg>Sign out</button></form>
+      </div>
+    </div>
+    {% else %}<a class="nav-item" href="{% url 'login' %}">Sign in</a>{% endif %}
+  </aside>
   <div class="main-wrap">
-    <header class="plain-header">
-      <a class="plain-brand" href="{% url 'dashboard' %}">Capital Infusion <span>PhoneTracker</span></a>
-      {% if user.is_authenticated %}
-      <nav class="plain-nav" aria-label="Main navigation">
-        <a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' or request.resolver_match.url_name == 'batch_detail' %}aria-current="page"{% endif %}>{% if is_manager %}Lead lists{% else %}Your leads{% endif %}</a>
-        {% if is_manager %}
-        <a href="{% url 'upload_new' %}" {% if request.resolver_match.url_name == 'upload_new' or request.resolver_match.url_name == 'upload_detail' or request.resolver_match.url_name == 'upload_publish' %}aria-current="page"{% endif %}>Upload list</a>
-        <a href="{% url 'team' %}" {% if request.resolver_match.url_name == 'team' or request.resolver_match.url_name == 'team_detail' %}aria-current="page"{% endif %}>Accounts</a>
-        <a href="{% url 'audit_log' %}" {% if request.resolver_match.url_name == 'audit_log' %}aria-current="page"{% endif %}>History</a>
-        {% endif %}
-      </nav>
-      <div class="plain-account"><span>{{ user.get_full_name|default:user.username }}</span>{% if request.user.is_staff %}<a href="{% url 'password_change' %}">Account</a>{% endif %}<form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Sign out</button></form></div>
-      {% else %}<a href="{% url 'login' %}">Sign in</a>{% endif %}
+    <header class="topbar">
+      <span class="topbar-title">{% block section_name %}{% endblock %}</span>
+      <span class="topbar-meta">{% if demo_mode %}<span class="chip chip-demo"><span class="dot" aria-hidden="true"></span><span>Demo workspace</span><span class="chip-detail">· Synthetic phone numbers</span></span>{% endif %}<span class="chip">{{ server_today|date:'D, M j' }}</span></span>
     </header>
     <main class="content" id="main-content">
-      {% if demo_mode %}<div class="demo-banner"><span>Demo workspace</span> · Synthetic phone numbers</div>{% endif %}
       {% include 'tracker/partials/messages.html' %}
       {% block content %}{% endblock %}
     </main>
-    <footer class="site-footer"><span>Capital Infusion · Internal use only</span><span>{{ server_today|date:'l, F j, Y' }}</span></footer>
+    <footer class="site-footer"><span>Capital Infusion · Internal use only</span><span>{{ server_today|date:'l, F j, Y' }} · {{ company_timezone }}</span></footer>
   </div>
 </div>
+{% endwith %}
 {% endblock %}
 <div id="privacy-overlay" class="privacy-overlay" role="dialog" aria-modal="true" aria-labelledby="privacy-title" hidden>
-  <div class="privacy-box"><h2 id="privacy-title">Your list is covered</h2><p>Phone numbers are hidden when you leave this window. Return to your workspace when you’re ready.</p><button class="button button-primary" id="privacy-resume" type="button">Resume workspace</button></div>
+  <div class="privacy-box"><span class="brand-mark" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V7.75a3.5 3.5 0 0 1 7 0v2.75"/></svg></span><h2 id="privacy-title">Your list is covered</h2><p>Phone numbers are hidden when you leave this window. Return to your workspace when you’re ready.</p><button class="button button-primary" id="privacy-resume" type="button">Resume workspace</button></div>
 </div>
 </body>
 </html>

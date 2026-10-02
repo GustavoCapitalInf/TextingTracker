@@ -1,0 +1,7 @@
+<h2 id="{{ prefix }}-title">{% if reusable_previous == 1 %}This number was previously uploaded and flagged. Do you wish to upload it again?{% else %}These {{ reusable_previous }} numbers were previously uploaded and flagged. Do you wish to upload them again?{% endif %}</h2>
+<p id="{{ prefix }}-help">Yes adds {{ reusable_previous|pluralize:'it,them' }} to this list’s split. No leaves {{ reusable_previous|pluralize:'it,them' }} out.{% if counts.blocked %} {{ counts.blocked }} do-not-contact number{{ counts.blocked|pluralize }} from earlier call history {{ counts.blocked|pluralize:'is,are' }} always left out.{% endif %}</p>
+<div class="decision-actions">
+  <form method="post" action="{% url 'upload_previous' upload.id %}">{% csrf_token %}<input type="hidden" name="include" value="yes"><button class="button button-primary" type="submit">Yes</button></form>
+  <form method="post" action="{% url 'upload_previous' upload.id %}">{% csrf_token %}<input type="hidden" name="include" value="no"><button class="button" type="submit">No</button></form>
+  {% if in_dialog %}<form method="dialog"><button class="button button-quiet" type="submit">Review the numbers first</button></form>{% else %}<a class="text-link" href="#import-results">Review the flagged numbers</a>{% endif %}
+</div>

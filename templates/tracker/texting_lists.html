@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Texting lists{% endblock %}
+{% block section_name %}Texting lists{% endblock %}
+{% block content %}
+<header class="page-head"><div><h1>Texting lists</h1><p>Texting lists, like GFS and Ringcentral, decide which reps can receive which uploads. Add a list, then choose who’s on it.</p></div><span class="badge">{{ items|length }} list{{ items|length|pluralize }}</span></header>
+<div class="team-layout accounts-layout">
+  <section>
+    <div class="section-head"><div><h2>Your texting lists</h2><p>Open a list to rename it or change its reps.</p></div></div>
+    <div class="panel table-wrap"><table>
+      <thead><tr><th scope="col">List</th><th scope="col" class="numeric">Reps</th><th scope="col" class="numeric">Uploads</th><th scope="col">Status</th></tr></thead>
+      <tbody>{% for item in items %}<tr><td><a class="table-primary" href="{{ item.get_absolute_url }}">{{ item.name }}</a>{% if item.nickname %}<span class="subtext">{{ item.nickname }}</span>{% endif %}</td><td class="numeric mono">{{ item.rep_count }}</td><td class="numeric mono">{{ item.upload_count }}</td><td><span class="badge {% if item.is_active %}badge-active{% endif %}">{% if item.is_active %}In use{% else %}Hidden{% endif %}</span></td></tr>{% empty %}<tr><td colspan="4">No texting lists yet.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+  <section class="panel"><div class="panel-head"><h2>Add a texting list</h2><p>Give it a name and pick its reps. You can change both later.</p></div>
+    <form method="post" class="panel-body form-stack">{% csrf_token %}{{ form.non_field_errors }}
+      <div class="field">{{ form.name.label_tag }}{{ form.name }}{{ form.name.errors }}</div>
+      <div class="field">{{ form.nickname.label_tag }}{{ form.nickname }}<div class="help-text">{{ form.nickname.help_text }}</div>{{ form.nickname.errors }}</div>
+      <fieldset class="field"><legend class="field-label">Reps on this list</legend><div class="rep-choices rep-choices-compact">{% for box in form.reps %}<div>{{ box }}</div>{% empty %}<p class="quiet small">No active reps yet. <a href="{% url 'team' %}">Add reps in Accounts</a>.</p>{% endfor %}</div>{{ form.reps.errors }}</fieldset>
+      <button class="button button-primary" type="submit">Create texting list</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

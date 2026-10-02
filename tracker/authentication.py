@@ -26,8 +26,13 @@ def client_ip(request):
 
 def throttle_keys(request):
     username = unicodedata.normalize('NFKC', request.POST.get('username', '')[:150]).strip().casefold()
-    values = [('account:' + username, settings.LOGIN_MAX_ATTEMPTS),
-              ('address:' + client_ip(request), 50)]
+    address = client_ip(request)
+    # A wrong-password streak blocks the username only from the address it came
+    # from, so nobody can lock a coworker out from their own device. The higher
+    # per-username limit still stops guessing spread across many devices.
+    values = [('account:' + username + '|address:' + address, settings.LOGIN_MAX_ATTEMPTS),
+              ('account:' + username, settings.LOGIN_ACCOUNT_MAX_ATTEMPTS),
+              ('address:' + address, settings.LOGIN_ADDRESS_MAX_ATTEMPTS)]
     return [(hmac.new(settings.SECRET_KEY.encode(), value.encode(), hashlib.sha256).hexdigest(), limit) for value, limit in values]
 
 
@@ -54,5 +59,6 @@ def register_failure(request):
 
 
 def reset_account_limit(request):
-    account_key = throttle_keys(request)[0][0]
-    SecurityThrottle.objects.filter(key=account_key).delete()
+    # Clears this device's streak only; spread-out failures expire with the window.
+    device_key = throttle_keys(request)[0][0]
+    SecurityThrottle.objects.filter(key=device_key).delete()

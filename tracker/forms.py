@@ -5,12 +5,13 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-from .models import TextingListType
+from .models import WEEKDAY_NAMES
+from . import texting_lists
 from .services import eligible_reps
 
 
 class ListTypeForm(forms.Form):
-    list_type = forms.ChoiceField(label='List type', choices=[('', 'Choose a list type'), *TextingListType.choices])
+    list_type = forms.ChoiceField(label='Texting list', choices=lambda: [('', 'Choose a texting list'), *texting_lists.active_choices()])
 
 
 class UploadForm(ListTypeForm):
@@ -31,7 +32,7 @@ class PublishForm(forms.Form):
     def __init__(self, *args, **kwargs):
         list_type = kwargs.pop('list_type', None)
         super().__init__(*args, **kwargs)
-        if list_type in TextingListType.values:
+        if list_type and texting_lists.get(list_type):
             self.fields['reps'].queryset = eligible_reps(list_type).order_by('first_name', 'last_name', 'username')
         if not self.is_bound:
             self.fields['dates'].initial = timezone.localdate().isoformat()
@@ -59,3 +60,75 @@ class PublishForm(forms.Form):
             self.add_error('reps', f"Select exactly {data['rep_count']} reps to match the split.")
         return data
 
+
+
+class TemplateForm(forms.Form):
+    name = forms.CharField(max_length=120, label='Template name')
+    is_active = forms.BooleanField(required=False, label='Turn on: show these lists as reminders on the calendar')
+
+
+class RepWithGroups(forms.ModelMultipleChoiceField):
+    def label_from_instance(self, obj):
+        return obj.get_full_name() or obj.username
+
+
+class RepCheckboxes(forms.CheckboxSelectMultiple):
+    """Each checkbox carries its rep's texting groups so the page can list only the chosen group."""
+
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex, attrs)
+        rep = getattr(value, 'instance', None)
+        if rep is not None:
+            option['attrs']['data-groups'] = ' '.join(m.list_type for m in rep.list_memberships.all())
+        return option
+
+
+class TemplateListForm(forms.Form):
+    label = forms.CharField(max_length=120, label='List name', widget=forms.TextInput(attrs={'placeholder': 'e.g. organic text- Clean'}))
+    list_type = forms.ChoiceField(label='Texting list', choices=lambda: [('', 'Choose a texting list'), *texting_lists.active_choices()])
+    weekdays = forms.TypedMultipleChoiceField(
+        label='Days', coerce=int, choices=list(enumerate(WEEKDAY_NAMES)), widget=forms.CheckboxSelectMultiple,
+        error_messages={'required': 'Choose at least one day.'},
+    )
+    reps = RepWithGroups(
+        queryset=get_user_model().objects.none(), required=False, label='Reps', widget=RepCheckboxes,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['reps'].queryset = get_user_model().objects.filter(
+            is_active=True, is_staff=False, is_superuser=False, list_memberships__isnull=False,
+        ).distinct().prefetch_related('list_memberships').order_by('first_name', 'last_name', 'username')
+
+    def clean(self):
+        data = super().clean()
+        list_type, reps = data.get('list_type'), data.get('reps')
+        if list_type and reps:
+            outside = [rep for rep in reps if not any(m.list_type == list_type for m in rep.list_memberships.all())]
+            if outside:
+                names = ', '.join(rep.get_full_name() or rep.username for rep in outside)
+                self.add_error('reps', f"{names} {'is' if len(outside) == 1 else 'are'} not in {texting_lists.label(list_type)}.")
+        return data
+
+
+class TextingListForm(forms.Form):
+    name = forms.CharField(max_length=80, label='List name', widget=forms.TextInput(attrs={'placeholder': 'e.g. SMS Magic'}))
+    nickname = forms.CharField(max_length=40, required=False, label='Nickname (optional)',
+                               help_text='A short tag shown next to the name, like “Clean” or “Donut”.')
+
+
+class TextingListSettingsForm(TextingListForm):
+    is_active = forms.BooleanField(required=False, label='Show this list for new uploads and templates')
+
+
+class TextingListRepsForm(forms.Form):
+    reps = RepWithGroups(queryset=get_user_model().objects.none(), required=False, label='Reps on this list',
+                         widget=forms.CheckboxSelectMultiple)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['reps'].queryset = texting_lists.rep_queryset().order_by('first_name', 'last_name', 'username')
+
+
+class TextingListCreateForm(TextingListForm, TextingListRepsForm):
+    field_order = ['name', 'nickname', 'reps']

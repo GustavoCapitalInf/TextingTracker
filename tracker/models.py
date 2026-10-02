@@ -1,6 +1,8 @@
 """Persistent calling history and the assignments generated from each import."""
 
+import re
 import uuid
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import models
@@ -9,24 +11,145 @@ from django.urls import reverse
 from django.utils import timezone
 
 
-class TextingListType(models.TextChoices):
-    GFS = "gfs", "GFS Texting"
-    RINGCENTRAL = "ringcentral", "Ringcentral Texting"
+class TextingListType:
+    """Keys of the two texting lists created at installation (see migration 0007)."""
+
+    GFS = "gfs"
+    RINGCENTRAL = "ringcentral"
+
+
+class TextingList(models.Model):
+    """A texting list such as GFS or Ringcentral, managed by admins.
+
+    Uploads, memberships, templates and skips store the list's `key`, which never
+    changes, so renaming a list relabels its history without touching it.
+    """
+
+    key = models.SlugField(max_length=64, unique=True)
+    name = models.CharField(max_length=80)
+    nickname = models.CharField(max_length=40, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+
+    class Meta:
+        ordering = ["-is_active", "name", "pk"]
+
+    def __str__(self):
+        return self.label
+
+    def get_absolute_url(self):
+        return reverse("texting_list_detail", kwargs={"list_id": self.pk})
+
+    @property
+    def label(self):
+        return f"{self.name} ({self.nickname})" if self.nickname else self.name
+
+    @property
+    def short_label(self):
+        """Compact name for calendar entries, e.g. "GFS · Donut"."""
+        short = re.sub(r"\s+texting$", "", self.name, flags=re.IGNORECASE) or self.name
+        return f"{short} · {self.nickname}" if self.nickname else short
+
+
+def _list_label(key, short=False, default="Not selected"):
+    from .texting_lists import get
+    item = get(key) if key else None
+    if item is None:
+        return default
+    return item.short_label if short else item.label
 
 
 class RepListMembership(models.Model):
     rep = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="list_memberships",
     )
-    list_type = models.CharField(max_length=16, choices=TextingListType)
+    list_type = models.CharField(max_length=64)
 
     class Meta:
         ordering = ["rep_id", "list_type"]
         constraints = [
             models.UniqueConstraint(fields=["rep", "list_type"], name="unique_rep_list_membership"),
-            models.CheckConstraint(
-                condition=Q(list_type__in=TextingListType.values), name="valid_rep_list_membership_type",
-            ),
+        ]
+
+    @property
+    def label(self):
+        return _list_label(self.list_type)
+
+
+WEEKDAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+
+class ScheduleTemplate(models.Model):
+    """A reusable week of lists. Active templates plan the admin calendar."""
+
+    name = models.CharField(max_length=120)
+    is_active = models.BooleanField(default=False)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="schedule_templates")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-is_active", "name", "pk"]
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        return reverse("template_detail", kwargs={"template_id": self.pk})
+
+
+class TemplateList(models.Model):
+    """One planned list in a template: its name, texting group, weekdays and reps."""
+
+    template = models.ForeignKey(ScheduleTemplate, on_delete=models.CASCADE, related_name="lists")
+    label = models.CharField(max_length=120)
+    list_type = models.CharField(max_length=64)
+    weekdays = models.JSONField(default=list)  # 0 = Monday
+    reps = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="template_lists")
+    note = models.CharField(max_length=120, blank=True)
+
+    class Meta:
+        ordering = ["pk"]
+
+    def __str__(self):
+        return self.label
+
+    @property
+    def list_type_label(self):
+        return _list_label(self.list_type)
+
+    def days_in_week(self, week_start):
+        return [week_start + timedelta(days=day) for day in sorted(self.weekdays)]
+
+    @property
+    def weekday_label(self):
+        days = sorted(self.weekdays)
+        if len(days) > 2 and days == list(range(days[0], days[-1] + 1)):
+            return f"{WEEKDAY_NAMES[days[0]]}–{WEEKDAY_NAMES[days[-1]]}"
+        return ", ".join(WEEKDAY_NAMES[day] for day in days)
+
+
+class PlanSkip(models.Model):
+    """A planned list the manager chose not to send on one day.
+
+    Keyed by list name (letters and digits only) and texting group, so it covers
+    the same list in every active template.
+    """
+
+    label_key = models.CharField(max_length=120)
+    label = models.CharField(max_length=120)
+    list_type = models.CharField(max_length=64)
+    day = models.DateField()
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="plan_skips")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["day", "label", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["label_key", "list_type", "day"], name="unique_plan_skip"),
         ]
 
 
@@ -38,7 +161,14 @@ class ImportBatch(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     label = models.CharField(max_length=120)
-    list_type = models.CharField(max_length=16, choices=TextingListType, blank=True, default="")
+    list_type = models.CharField(max_length=64, blank=True, default="")
+    # None until the manager answers whether previously uploaded numbers join this list.
+    include_previous = models.BooleanField(null=True, blank=True, default=None)
+    # Set when the upload fills a planned template list for a given week (its Monday).
+    template_list = models.ForeignKey(
+        TemplateList, on_delete=models.SET_NULL, null=True, blank=True, related_name="uploads",
+    )
+    planned_week = models.DateField(null=True, blank=True)
     filename = models.CharField(max_length=255)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="imports"
@@ -53,17 +183,20 @@ class ImportBatch(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-        constraints = [
-            models.CheckConstraint(
-                condition=Q(list_type__in=["", *TextingListType.values]), name="valid_import_list_type",
-            ),
-        ]
 
     def __str__(self):
         return self.label
 
     def get_absolute_url(self):
         return reverse("upload_detail", kwargs={"upload_id": self.pk})
+
+    @property
+    def list_type_label(self):
+        return _list_label(self.list_type)
+
+    @property
+    def list_type_short(self):
+        return _list_label(self.list_type, short=True)
 
     @property
     def total_count(self):
@@ -193,6 +326,8 @@ class Assignment(models.Model):
         IN_PROGRESS = "in_progress", "Call in progress"
         DONE = "done", "Completed"
         CANCELLED = "cancelled", "Closed"
+        # The manager deliberately assigned this number again in a later list.
+        REASSIGNED = "reassigned", "Assigned again"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     batch = models.ForeignKey(RepBatch, on_delete=models.PROTECT, related_name="assignments")

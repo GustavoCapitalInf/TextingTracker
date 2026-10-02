@@ -16,6 +16,20 @@ from .models import Assignment, CallAttempt, ImportBatch, RepBatch
 _ACTION_LABELS = {
     "upload.imported": "Spreadsheet uploaded",
     "upload.published": "Batches created",
+    "upload.previous_numbers_decided": "Previously uploaded numbers",
+    "upload.planned": "Upload filled a planned list",
+    "template.suggested": "Template drafted from past weeks",
+    "template.created": "Template created",
+    "template.updated": "Template saved",
+    "template.list_saved": "Template list saved",
+    "template.list_removed": "Template list removed",
+    "template.deleted": "Template deleted",
+    "plan.skipped": "Planned day skipped",
+    "texting_list.created": "Texting list created",
+    "texting_list.updated": "Texting list saved",
+    "texting_list.members_changed": "Texting list reps changed",
+    "texting_list.deleted": "Texting list deleted",
+    "plan.unskipped": "Skipped day planned again",
     "upload.closed": "Upload cleared",
     "upload.viewed": "Upload reviewed",
     "batch.closed": "Batch cleared",
@@ -34,6 +48,11 @@ _ACTION_LABELS = {
 }
 
 _SIMPLE_DESCRIPTIONS = {
+    "upload.planned": "Linked this upload to a planned list so its days and reps were filled in.",
+    "template.created": "Created a weekly template.",
+    "template.list_saved": "Saved a planned list's name, days, and reps.",
+    "template.list_removed": "Removed a planned list; existing lists were unchanged.",
+    "template.deleted": "Deleted a weekly template; existing lists were unchanged.",
     "upload.viewed": "Opened the spreadsheet review and allocation details.",
     "call.started": "Marked this assigned number as a call in progress.",
     "account.signed_in": "Signed in with their personal account.",
@@ -129,7 +148,45 @@ def _description(event):
                         pass
         if days:
             summary += ". List dates: " + "; ".join(_date_label(day) for day in sorted(set(days)))
+        reused = _number(details, "reused_count")
+        if reused:
+            summary += f". Includes {_quantity(reused, 'previously uploaded number')}"
         return summary + "."
+    if action == "upload.previous_numbers_decided":
+        count = _number(details, "previous_count")
+        numbers = _quantity(count, "previously uploaded number") if count is not None else "Previously uploaded numbers"
+        if details.get("include") is True:
+            return f"Chose to upload {numbers} again in this list." if count is not None else "Chose to upload previously uploaded numbers again."
+        if details.get("include") is False:
+            return f"Left {numbers} out of this list." if count is not None else "Left previously uploaded numbers out of this list."
+        return "Recorded a decision about previously uploaded numbers."
+    if action == "texting_list.created":
+        count = _number(details, "rep_count")
+        return f"Created a texting list with {_quantity(count, 'rep')}." if count is not None else "Created a texting list."
+    if action == "texting_list.updated":
+        if details.get("is_active") is False:
+            return "Saved the texting list; it is hidden from new uploads and templates."
+        return "Renamed the texting list." if details.get("renamed") is True else "Saved the texting list."
+    if action == "texting_list.members_changed":
+        added, removed = _number(details, "added"), _number(details, "removed")
+        if added is None or removed is None:
+            return "Changed which reps are on the texting list."
+        return f"Added {_quantity(added, 'rep')} and removed {_quantity(removed, 'rep')}; removed reps lost access to this list."
+    if action == "texting_list.deleted":
+        return "Deleted an unused texting list."
+    if action in ("plan.skipped", "plan.unskipped"):
+        raw = details.get("day")
+        try:
+            day = _date_label(date.fromisoformat(raw)) if isinstance(raw, str) else None
+        except ValueError:
+            day = None
+        verb = "Skipped a planned list" if action == "plan.skipped" else "Brought back a skipped planned list"
+        return f"{verb} for {day}." if day else f"{verb}."
+    if action == "template.suggested":
+        count = _number(details, "list_count")
+        return f"Drafted {_quantity(count, 'list')} from the last 4 weeks." if count is not None else "Drafted a template from recent weeks."
+    if action == "template.updated":
+        return "Turned the template on for calendar planning." if details.get("is_active") is True else "Saved the template; it is not planning the calendar."
     if action == "upload.closed":
         count = _number(details, "batch_count")
         summary = f"Closed {_quantity(count, 'batch', 'batches')} from this upload" if count is not None else "Closed this upload"

@@ -16,11 +16,13 @@ from openpyxl import Workbook
 
 from tracker.models import (
     Assignment, AuditEvent, CallAttempt, ImportBatch, ImportRow, PhoneNumber,
-    RepBatch, RepListMembership, TextingListType,
+    RepBatch, RepListMembership, TextingList, TextingListType,
 )
+from tracker.accounts import update_rep_memberships
 from tracker.services import (
     close_batch, close_upload, import_workbook, normalize_phone, preview_split,
     publish_batches, record_outcome, start_call, eligible_reps, classify_upload,
+    decide_previous_numbers,
 )
 
 
@@ -301,14 +303,17 @@ class ServiceTests(TestCase):
         upload.refresh_from_db()
         self.assertEqual(upload.list_type, TextingListType.GFS)
 
-    def test_database_enforces_membership_uniqueness_and_valid_type_values(self):
+    def test_membership_is_unique_and_unknown_lists_are_rejected(self):
         with self.assertRaises(IntegrityError), transaction.atomic():
             RepListMembership.objects.create(rep=self.rep, list_type=TextingListType.GFS)
-        with self.assertRaises(IntegrityError), transaction.atomic():
-            RepListMembership.objects.create(rep=self.rep, list_type="other")
-        upload = self.import_numbers()
-        with self.assertRaises(IntegrityError), transaction.atomic():
-            ImportBatch.objects.filter(pk=upload.pk).update(list_type="other")
+        # Lists are managed in the app, so unknown or hidden keys are refused by the services.
+        with self.assertRaisesMessage(ValidationError, "texting list"):
+            import_workbook(spreadsheet(valid_numbers(1)), self.manager, "Bad", list_type="other")
+        with self.assertRaises(ValidationError):
+            update_rep_memberships(self.manager, self.rep, ["other"])
+        TextingList.objects.filter(key=TextingListType.GFS).update(is_active=False)
+        with self.assertRaises(ValidationError):
+            import_workbook(spreadsheet(valid_numbers(1)), self.manager, "Hidden", list_type=TextingListType.GFS)
 
     def test_remainder_rotation_balances_multiple_small_days(self):
         upload = self.import_numbers(8)
@@ -317,7 +322,8 @@ class ServiceTests(TestCase):
         preview = preview_split(upload, days, reps)
         totals = [sum(row["count"] for row in preview if row["rep"] == rep) for rep in reps]
         self.assertEqual(totals, [3, 3, 2])
-        self.assertEqual(len(publish_batches(upload, days, reps, self.manager)), 12)
+        # Two numbers a day for three reps: whoever gets none that day gets no empty list.
+        self.assertEqual(len(publish_batches(upload, days, reps, self.manager)), 8)
 
     def test_publish_retry_is_idempotent_and_changed_settings_are_rejected(self):
         upload = self.import_numbers()
@@ -499,6 +505,91 @@ class ServiceTests(TestCase):
             self.assertEqual(record_outcome(assignments[0], self.rep, "callback_requested").status, Assignment.Status.DONE)
             with self.assertRaises(PermissionDenied):
                 start_call(assignments[1], self.rep)
+
+    def repeat_with_new(self, new_count=2):
+        """Re-upload the three numbers from assigned() plus some new ones."""
+        values = valid_numbers(3) + [f"416555{2000 + index:04d}" for index in range(new_count)]
+        return import_workbook(spreadsheet(values), self.manager, "Repeat", list_type=TextingListType.GFS)
+
+    def test_previous_numbers_need_a_decision_before_split_or_publish(self):
+        self.assigned()
+        repeated = self.repeat_with_new()
+        tomorrow = timezone.localdate() + timedelta(days=1)
+        with self.assertRaisesMessage(ValidationError, "Choose whether to upload the previously uploaded numbers again"):
+            preview_split(repeated, [tomorrow], [self.other_rep])
+        with self.assertRaisesMessage(ValidationError, "Choose whether to upload the previously uploaded numbers again"):
+            publish_batches(repeated, [tomorrow], [self.other_rep], self.manager)
+        self.assertFalse(repeated.batches.exists())
+
+    def test_declining_previous_numbers_assigns_only_new_numbers(self):
+        _, original, _ = self.assigned()
+        repeated = decide_previous_numbers(self.repeat_with_new(), False, self.manager)
+        tomorrow = timezone.localdate() + timedelta(days=1)
+        self.assertEqual(sum(row["count"] for row in preview_split(repeated, [tomorrow], [self.other_rep])), 2)
+        batch = publish_batches(repeated, [tomorrow], [self.other_rep], self.manager)[0]
+        self.assertEqual(batch.assignments.count(), 2)
+        self.assertFalse(batch.assignments.filter(phone__canonical__startswith="+1212").exists())
+        self.assertEqual(original.assignments.filter(status=Assignment.Status.PENDING).count(), 3)
+
+    def test_including_previous_numbers_assigns_them_again_and_keeps_history(self):
+        _, original, old_assignments = self.assigned()
+        close_batch(original, self.manager)  # Cleared numbers can also be reused on request.
+        repeated = decide_previous_numbers(self.repeat_with_new(), True, self.manager)
+        tomorrow = timezone.localdate() + timedelta(days=1)
+        self.assertEqual(sum(row["count"] for row in preview_split(repeated, [tomorrow], [self.other_rep])), 5)
+        batch = publish_batches(repeated, [tomorrow], [self.other_rep], self.manager)[0]
+        reused = {assignment.phone_id for assignment in old_assignments}
+        self.assertEqual(batch.assignments.count(), 5)
+        self.assertEqual(set(batch.assignments.filter(phone_id__in=reused).values_list("phone_id", flat=True)), reused)
+        # The earlier list keeps its history; the database still allows one live assignment per number.
+        self.assertEqual(original.assignments.count(), 3)
+        self.assertEqual(PhoneNumber.objects.filter(pk__in=reused, status=PhoneNumber.Status.RESERVED).count(), 3)
+        event = AuditEvent.objects.get(action="upload.published", target_id=str(repeated.pk))
+        self.assertEqual(event.details["reused_count"], 3)
+
+    def test_reusing_a_live_number_marks_its_earlier_assignment_as_assigned_again(self):
+        _, original, old_assignments = self.assigned()
+        repeated = decide_previous_numbers(self.repeat_with_new(0), True, self.manager)
+        batch = publish_batches(repeated, [timezone.localdate() + timedelta(days=1)], [self.other_rep], self.manager)[0]
+        self.assertEqual(batch.assignments.count(), 3)
+        self.assertEqual(original.assignments.filter(status=Assignment.Status.REASSIGNED).count(), 3)
+        for assignment in old_assignments:
+            self.assertEqual(Assignment.objects.filter(
+                phone=assignment.phone, status__in=[Assignment.Status.PENDING, Assignment.Status.IN_PROGRESS],
+            ).count(), 1)
+
+    def test_do_not_contact_numbers_are_never_reused(self):
+        _, _, assignments = self.assigned()
+        start_call(assignments[0], self.rep)
+        record_outcome(assignments[0], self.rep, "do_not_call")
+        repeated = decide_previous_numbers(self.repeat_with_new(), True, self.manager)
+        batch = publish_batches(repeated, [timezone.localdate() + timedelta(days=1)], [self.other_rep], self.manager)[0]
+        self.assertEqual(batch.assignments.count(), 4)
+        self.assertFalse(batch.assignments.filter(phone=assignments[0].phone).exists())
+
+    def test_only_blocked_previous_numbers_need_no_decision(self):
+        _, _, assignments = self.assigned(1)
+        start_call(assignments[0], self.rep)
+        record_outcome(assignments[0], self.rep, "not_interested")
+        repeated = import_workbook(spreadsheet(valid_numbers(1) + ["4165552000"]), self.manager, "Repeat", list_type=TextingListType.GFS)
+        batch = publish_batches(repeated, [timezone.localdate() + timedelta(days=1)], [self.other_rep], self.manager)[0]
+        self.assertEqual(batch.assignments.count(), 1)
+
+    def test_previous_decision_requires_manager_unassigned_draft_and_boolean(self):
+        self.assigned()
+        repeated = self.repeat_with_new()
+        with self.assertRaises(PermissionDenied):
+            decide_previous_numbers(repeated, True, self.rep)
+        with self.assertRaises(ValidationError):
+            decide_previous_numbers(repeated, "yes", self.manager)
+        decide_previous_numbers(repeated, False, self.manager)
+        decide_previous_numbers(repeated, False, self.manager)  # Repeating the same answer is a no-op.
+        self.assertEqual(AuditEvent.objects.filter(action="upload.previous_numbers_decided").count(), 1)
+        publish_batches(repeated, [timezone.localdate() + timedelta(days=1)], [self.other_rep], self.manager)
+        with self.assertRaises(ValidationError):
+            decide_previous_numbers(repeated, True, self.manager)
+        repeated.refresh_from_db()
+        self.assertIs(repeated.include_previous, False)
 
     def test_database_constraint_prevents_duplicate_live_assignments(self):
         _, batch, assignments = self.assigned()
