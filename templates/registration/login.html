@@ -7,6 +7,7 @@
     <h1>Sign in</h1><p>Use your account to access your lead lists.</p>
     {% include 'tracker/partials/messages.html' %}
     {% if demo_mode %}<div class="notice notice-inline"><span class="chip chip-demo"><span class="dot" aria-hidden="true"></span><span>Demo workspace</span></span><span>Synthetic data only</span></div>{% endif %}
+    {% if expired %}<div class="notice notice-warning" role="status"><div>That sign-in page was out of date, so it was refreshed. Enter your username and password again.</div></div>{% endif %}
     {% if throttled %}<div class="notice notice-error" role="alert"><div>Too many sign-in attempts. Try again in 15 minutes.</div></div>{% endif %}
     {% if form.errors %}<div class="notice notice-error" role="alert"><div>{{ form.non_field_errors }}{% if not form.non_field_errors %}Check your username and password, then try again.{% endif %}</div></div>{% endif %}
     {% if next and user.is_authenticated %}<div class="notice notice-warning">Your account does not have access to that page.</div>{% endif %}

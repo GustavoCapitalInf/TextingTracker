@@ -18,6 +18,7 @@ from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.http import url_has_allowed_host_and_scheme
+from urllib.parse import urlencode
 from django.views.decorators.http import require_POST, require_http_methods
 
 from .appearance import THEME_COOKIE, THEME_COOKIE_AGE, THEMES
@@ -109,7 +110,9 @@ def login_view(request):
         else:
             register_failure(request)
             services.write_audit(None, 'account.sign_in_failed', None, {'ip': client_ip(request)})
-    return render(request, 'registration/login.html', {'form': form, 'throttled': throttled, 'next': request.GET.get('next', request.POST.get('next', ''))}, status=status)
+    expired = request.method == 'GET' and request.GET.get('expired') == '1'
+    return render(request, 'registration/login.html', {'form': form, 'throttled': throttled, 'expired': expired,
+                                                       'next': request.GET.get('next', request.POST.get('next', ''))}, status=status)
 
 
 @login_required
@@ -544,6 +547,23 @@ def team_detail(request, rep_id):
         'rep': rep, 'is_rep_account': is_rep, 'membership_form': form,
         'login_events': login_events, 'credential': credential,
     })
+
+
+def csrf_failure(request, reason=''):
+    """A form's security code no longer matched. Signing in renews the code, so a page opened
+    before a later sign-in (another tab, the Back button, a page left open) carries an old one.
+    Nothing was changed. A stale sign-in page is simply reloaded so the next try works; if the
+    person is already signed in, that reload takes them straight to their workspace."""
+    if request.method == 'POST' and request.path_info == reverse('login'):
+        query = {'expired': '1'}
+        destination = request.POST.get('next', '') or request.GET.get('next', '')
+        if destination and url_has_allowed_host_and_scheme(destination, {request.get_host()}, require_https=request.is_secure()):
+            query['next'] = destination
+        return redirect(f"{reverse('login')}?{urlencode(query)}")
+    message = 'For your security, a form expires when its page was opened before your latest sign-in or left open a long time. Nothing was changed. Go back, refresh the page, and try again.'
+    if request.headers.get('Accept') == 'application/json':
+        return JsonResponse({'error': message}, status=403)
+    return _error(request, 403, 'This page expired', message)
 
 
 def _error(request, status, heading, message):

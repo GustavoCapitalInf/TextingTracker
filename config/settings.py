@@ -118,6 +118,7 @@ SESSION_COOKIE_AGE = 30 * 60
 SESSION_SAVE_EVERY_REQUEST = False  # Status polling must not extend inactivity.
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 CSRF_COOKIE_HTTPONLY = True
+CSRF_FAILURE_VIEW = 'tracker.views.csrf_failure'
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 SECURE_SSL_REDIRECT = not DEBUG and os.getenv('DJANGO_SECURE_SSL_REDIRECT', 'true').lower() == 'true'
